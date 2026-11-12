@@ -16,16 +16,19 @@
 
 **完成标准**：`pet/` 能单独 `pnpm test` 通过；用 token 能连上 `/maim/{bot_id}/ws`。
 
-## 阶段 1：原型（2–4 天）——自建客户端简化版 + maim_message
+## 阶段 1：客户端核心（2–4 天）——桌宠跑起来 + maim_message 临时连接
 
-- [ ] 逐项验证嵌入耦合点（`cortico` 包、`WorldContext` 替身、窗口进程）
-- [ ] 让 `DesktopPetWorld` 脱离 Cortico 启动（CUA 关、配置走 JSON 文件），代码里直接调 `pet_say` 能冒气泡、做表情
-- [ ] TS 版 maim_message 旧协议客户端：收发文本
-- [ ] Conductor：打字或语音 → MaiBot；MaiBot 回复 → `pet_say`；客户端猜测的思考动画
-- [ ] 表情 E1：规则映射
+目的是把客户端核心建起来、让桌宠在 Mac 上跑起来；maim_message 只是一根临时测试线，用来验证 `link/` 接口，
+不追求这个阶段的聊天体验。运行方式按方向 B（ARCHITECTURE.md §3.3）：脱离 Cortico Core 的主循环，Cortico 只作为代码库使用。
+
+- [ ] 逐项验证嵌入耦合点（`cortico/*` 导入、`WorldContext` 替身、窗口进程）
+- [ ] `runtime/` 托管 `DesktopPetWorld`（CUA 关、配置走 JSON 文件），代码里直接调 `pet_say` 能冒气泡、做表情
+- [ ] Conductor 骨架：World 事件 → Link；Link 消息 → `pet_say`
 - [ ] 戳、摸、甩只做本地反应
+- [ ] 表情 E1：规则映射
+- [ ] `link/` 接口 + maim_message 旧版实现（从 `scripts/maim-ping.ts` 抽出类型、组包、握手）
 
-**完成标准**：在 Mac 上和麦麦正常聊十分钟，体验可接受；记下回复节奏、延迟、表情映射的问题。
+**完成标准**：桌宠在 Mac 上显示；输入一句话，经 WS 到达 MaiBot，回复出现在气泡里。
 
 ## 阶段 2：适配器插件（3–5 天）
 
@@ -36,7 +39,10 @@
 - [ ] docker-compose 映射端口，部署到 NAS
 - [ ] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选
 
-**完成标准**：两台设备同时在线，任意一台说话，两边都能看到回复；思考动画准确。
+- [ ] 评估聊天体验：在 Mac 上和麦麦正常聊十分钟，记下回复节奏、延迟、表情映射的问题
+- [ ] 不再需要旧版 WS 时，删掉 `bot.platforms` 里的 `coopet:coopet-maibot`
+
+**完成标准**：两台设备同时在线，任意一台说话，两边都能看到回复；思考动画准确；聊天体验可接受。
 
 ## 阶段 3：客户端产品化（1–2 周）
 
@@ -51,6 +57,7 @@
 ## 阶段 4：World 运行时与本地 Agent
 
 - [ ] `runtime/`：自己的 World 契约（工具 + 事件 + 环境说明 + 配置段）
+- [ ] 评估 Agent 是否直接用 Cortico Core 跑（它本来就是 LLM + 工具循环），还是自己写循环；和你讨论后定
 - [ ] `agent/`：LLM 工具循环（中断、步数上限、超时、日志）
 - [ ] 模型来源：插件 LLM 代理（`ctx.llm.generate_with_tools`）和直连 API 两种
 - [ ] 插件 `coopet_agent_task`（异步回执，结果作为内部消息送回聊天流）
