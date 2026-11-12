@@ -1,7 +1,7 @@
 import tomllib
 from pathlib import Path
 
-from settings import AdapterSettings
+from coopet_adapter.settings import AdapterSettings
 
 ROOT = Path(__file__).resolve().parent.parent
 

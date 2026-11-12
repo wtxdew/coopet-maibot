@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-import protocol as p
+from coopet_adapter import protocol as p
 
 
 def hello(**over):
