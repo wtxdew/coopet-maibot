@@ -110,7 +110,8 @@ function runApp() {
     if (process.platform === 'darwin') app.dock?.hide();
     if (state.loginItemAvailable) state.loginItem = app.getLoginItemSettings().openAtLogin;
     tray = createTray(() => state, {
-      togglePet: () => core.send({ type: state.onDesktop ? 'hide-pet' : 'show-pet' }),
+      // 由核心按桌宠的实时状态决定显示还是隐藏：托盘记的状态可能落后（例如从桌宠自己的菜单隐藏过）
+      togglePet: () => core.send({ type: 'toggle-pet' }),
       openDress,
       setLoginItem: (on) => {
         app.setLoginItemSettings({ openAtLogin: on });

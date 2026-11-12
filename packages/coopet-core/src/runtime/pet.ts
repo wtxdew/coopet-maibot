@@ -43,10 +43,14 @@ export interface PetHandle {
   turnEnded(): void;
   /** 转给 world.onEventsSettled：在对话页把这些消息标成已送达或已丢弃 */
   settled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void;
-  /** 显示桌宠窗口（没开时打开） */
-  show(): void;
+  /** 桌宠窗口现在是否显示在桌面上（读桌宠的实时状态） */
+  onDesktop(): boolean;
+  /** 显示桌宠窗口；已经在桌面上时什么也不做 */
+  show(): Promise<void>;
   /** 隐藏桌宠窗口（和桌宠菜单里的"隐藏"一样，窗口保持连接） */
   hide(): Promise<void>;
+  /** 按实时状态在显示和隐藏之间切换 */
+  toggle(): Promise<void>;
   /** 桌宠页面的地址，例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
   readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
@@ -82,6 +86,22 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
   await world.start(host);
   log.info(`桌宠已启动：http://127.0.0.1:${opts.cfg.port}/`);
 
+  // 显示、隐藏没有单独的公开方法，走桌宠面板的公开调用入口（Coopanion 的设置窗也走这里）
+  const panel = async (method: string): Promise<void> => {
+    await world.webUi('zh').invoke?.('pet', method, []);
+  };
+  const onDesktop = (): boolean => world.petState().onDesktop === true;
+  /**
+   * 窗口进程还在（例如被隐藏了）时 openWindow 什么也不做，所以先关掉再打开，和 Coopanion 一样；
+   * 已经在桌面上就不动，免得窗口闪一下。
+   */
+  const show = async (): Promise<void> => {
+    if (onDesktop()) return;
+    await panel('closeWindow');
+    await panel('openWindow');
+  };
+  const hide = (): Promise<void> => panel('hideWindow');
+
   let stopped = false;
   return {
     async call(tool, args, signal) {
@@ -93,10 +113,12 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     phase: (p) => world.onRunPhase({ ...p, enteredAt: new Date().toISOString() }),
     turnEnded: () => world.onTurnEnded(),
     settled: (events, outcome) => world.onEventsSettled(events, outcome),
-    show: () => world.openWindow(),
-    // 隐藏没有单独的公开方法，走桌宠面板的公开调用入口（Coopanion 的设置窗也走这里）
-    async hide() {
-      await world.webUi('zh').invoke?.('pet', 'hideWindow', []);
+    onDesktop,
+    show,
+    hide,
+    async toggle() {
+      if (onDesktop()) await hide();
+      else await show();
     },
     origin: `http://127.0.0.1:${opts.cfg.port}`,
     async stop() {

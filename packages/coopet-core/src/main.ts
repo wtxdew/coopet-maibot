@@ -79,8 +79,9 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 if (shell) {
   shell.onMessage((m) => {
-    if (m.type === 'show-pet') pet.show();
+    if (m.type === 'show-pet') void pet.show();
     else if (m.type === 'hide-pet') void pet.hide();
+    else if (m.type === 'toggle-pet') void pet.toggle();
     else if (m.type === 'shutdown') void shutdown('外壳要求退出');
   });
   // 外壳主进程没了（崩溃或被强制结束）：核心也退出，不留孤儿进程

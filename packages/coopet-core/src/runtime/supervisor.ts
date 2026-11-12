@@ -3,7 +3,7 @@
  * 直接 `corepack pnpm dev` 运行时没有 IPC，connectSupervisor 返回 null，其余代码照常工作。
  *
  * 核心 → 外壳：ready（桌宠页面地址）、link（连接状态）、pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）
- * 外壳 → 核心：show-pet、hide-pet、shutdown
+ * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、shutdown
  */
 
 export type ToShell =
@@ -12,7 +12,7 @@ export type ToShell =
   | { type: 'pet'; onDesktop: boolean }
   | { type: 'quit' };
 
-export type FromShell = { type: 'show-pet' } | { type: 'hide-pet' } | { type: 'shutdown' };
+export type FromShell = { type: 'show-pet' } | { type: 'hide-pet' } | { type: 'toggle-pet' } | { type: 'shutdown' };
 
 export interface Supervisor {
   send(message: ToShell): void;
@@ -29,7 +29,7 @@ export interface IpcProcess {
   on(event: 'disconnect', cb: () => void): unknown;
 }
 
-const FROM_SHELL = new Set(['show-pet', 'hide-pet', 'shutdown']);
+const FROM_SHELL = new Set(['show-pet', 'hide-pet', 'toggle-pet', 'shutdown']);
 
 export function connectSupervisor(proc: IpcProcess = process as unknown as IpcProcess): Supervisor | null {
   if (typeof proc.send !== 'function') return null;

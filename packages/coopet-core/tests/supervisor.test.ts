@@ -20,11 +20,12 @@ describe('connectSupervisor', () => {
     sup.onMessage((m) => got.push(m));
     sup.send({ type: 'ready', petOrigin: 'http://127.0.0.1:7797' });
     proc.emit('message', { type: 'show-pet' });
+    proc.emit('message', { type: 'toggle-pet' });
     proc.emit('message', { type: 'format-disk' });
     proc.emit('message', null);
     proc.emit('message', { type: 'shutdown' });
     expect(proc.sent).toEqual([{ type: 'ready', petOrigin: 'http://127.0.0.1:7797' }]);
-    expect(got).toEqual([{ type: 'show-pet' }, { type: 'shutdown' }]);
+    expect(got).toEqual([{ type: 'show-pet' }, { type: 'toggle-pet' }, { type: 'shutdown' }]);
     proc.connected = false;
     sup.send({ type: 'quit' });
     expect(proc.sent).toHaveLength(1);
