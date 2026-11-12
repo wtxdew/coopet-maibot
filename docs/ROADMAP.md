@@ -41,7 +41,7 @@
 - [x] replyer Hook → `thinking`（单元测试通过，待部署到 NAS 验证）
 - [ ] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发（插件端已完成），客户端本地的 `botName` 只作连不上时的后备
 - [ ] docker-compose 映射端口，部署到 NAS
-- [ ] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选
+- [x] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选（`link.kind` 切换；单元测试通过，待部署到 NAS 验证）
 
 - [ ] 评估聊天体验：在 Mac 上和麦麦正常聊十分钟，记下回复节奏、延迟、表情映射的问题
 - [ ] 不再需要旧版 WS 时，删掉 `bot.platforms` 里的 `coopet:coopet-maibot`
