@@ -14,16 +14,18 @@ import { MaimLegacyLink } from './link/maim-legacy.ts';
 import type { Link } from './link/types.ts';
 import { coopetDirs, deviceId, loadConfig, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
 import { MemoryEventStore } from './runtime/event-store.ts';
-import { consoleLogger } from './runtime/log.ts';
+import { consoleLogger, DailyFileSink } from './runtime/log.ts';
 import type { Logger } from 'cortico/core/types.ts';
 import { startPet } from './runtime/pet.ts';
 
 const PLATFORM = 'coopet';
 const CLIENT_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
-const log = consoleLogger('coopet');
 const dirs = coopetDirs();
-const { cfg, persistPet, flush } = loadConfig(dirs, { log });
+// 读配置时还不知道日志级别和要不要写文件：这一步的提示只写到终端
+const { cfg, persistPet, flush } = loadConfig(dirs, { log: consoleLogger('coopet') });
+const log = consoleLogger('coopet', cfg.log.level, cfg.log.file ? new DailyFileSink(dirs.logs) : undefined);
+log.info(`Coopet 启动（v${CLIENT_VERSION}，连接方式 ${cfg.link.kind}，日志级别 ${cfg.log.level}${cfg.log.file ? `，日志文件 ${dirs.logs}` : ''}）`);
 const store = new MemoryEventStore();
 
 const link = createLink(cfg, dirs, log.child('link'));

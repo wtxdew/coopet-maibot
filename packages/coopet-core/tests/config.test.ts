@@ -37,6 +37,8 @@ describe('loadConfig', () => {
     expect(cfg.link.maim).toEqual({ url: '', tokenFile: join(root, 'token'), botAccount: 'coopet-maibot', userId: 'owner', userNickname: '主人' });
     expect(cfg.link.plugin).toEqual({ url: '', tokenFile: join(root, 'plugin-token') });
     expect(cfg.botName).toBe('MaiBot');
+    expect(cfg.log).toEqual({ level: 'info', file: true });
+    expect(dirs.logs).toBe(join(root, 'logs'));
     expect(existsSync(dirs.configFile)).toBe(false);
   });
 
@@ -72,6 +74,16 @@ describe('loadConfig', () => {
     persistPet({ theme: 'light' });
     flush();
     expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).link).toEqual({ maim: { url: 'ws://old/ws', userNickname: '老板' } });
+  });
+
+  it('reads log settings and rejects bad ones', () => {
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ log: { level: 'debug' } }));
+    expect(loadConfig(dirs).cfg.log).toEqual({ level: 'debug', file: true });
+    writeFileSync(dirs.configFile, JSON.stringify({ log: { level: 'loud' } }));
+    expect(() => loadConfig(dirs)).toThrow(/log.level/);
+    writeFileSync(dirs.configFile, JSON.stringify({ log: { file: 'yes' } }));
+    expect(() => loadConfig(dirs)).toThrow(/log.file/);
   });
 
   it('rejects an unknown link kind', () => {

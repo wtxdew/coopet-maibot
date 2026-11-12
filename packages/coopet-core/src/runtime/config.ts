@@ -13,7 +13,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { DeepPartial } from 'cortico/world.ts';
-import type { Logger } from 'cortico/core/types.ts';
+import type { Logger, LogLevel } from 'cortico/core/types.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
 
 /** 经 coopet-adapter 插件连接（协议 v0，docs/PROTOCOL.md）。身份和 Bot 名字由插件下发。 */
@@ -47,9 +47,17 @@ export interface LinkConfig {
   maim: MaimLinkConfig;
 }
 
+export interface LogConfig {
+  /** 最低记录级别；排查问题时改成 debug */
+  level: LogLevel;
+  /** 是否同时写到 `<root>/logs/coopet-YYYY-MM-DD.log`（保留 7 天） */
+  file: boolean;
+}
+
 export interface CoopetConfig {
-  /** 桌宠菜单、提示里显示的麦麦的名字 */
+  /** 桌宠菜单、提示里显示的麦麦的名字（连上插件后以 MaiBot 设置里的为准） */
   botName: string;
+  log: LogConfig;
   link: LinkConfig;
   pet: DesktopPetConfigSection;
 }
@@ -66,6 +74,8 @@ export interface CoopetDirs {
   runtimes: string;
   /** 语音模型 */
   models: string;
+  /** 日志文件 */
+  logs: string;
 }
 
 /** 阶段 1 先用 ~/.config/coopet，Mac 和 Windows 都可用；阶段 3 再换成各系统的惯例位置。 */
@@ -78,6 +88,7 @@ export function coopetDirs(root = join(homedir(), '.config', 'coopet')): CoopetD
     figures: join(data, 'figures'),
     runtimes: join(data, 'runtimes'),
     models: join(data, 'models'),
+    logs: join(root, 'logs'),
   };
 }
 
@@ -171,6 +182,7 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
   mergeInPlace(pet, overrides.pet);
   const cfg: CoopetConfig = {
     botName: typeof file.botName === 'string' && file.botName.trim() ? file.botName : 'MaiBot',
+    log: logFrom(file.log),
     link: linkFrom(dirs, overrides.link!),
     pet,
   };
@@ -202,6 +214,16 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       write();
     },
   };
+}
+
+const LEVELS: readonly LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
+
+function logFrom(raw: unknown): LogConfig {
+  const log: LogConfig = { level: 'info', file: true };
+  mergeInPlace(log, raw);
+  if (!LEVELS.includes(log.level)) throw new Error(`log.level 只能是 ${LEVELS.join('、')}，收到：${String(log.level)}`);
+  if (typeof log.file !== 'boolean') throw new Error('log.file 必须是 true 或 false');
+  return log;
 }
 
 function linkFrom(dirs: CoopetDirs, overrides: Record<string, unknown>): LinkConfig {
