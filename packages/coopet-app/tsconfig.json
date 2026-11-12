@@ -1,0 +1,15 @@
+{
+  // 外壳是纯 JavaScript（.cjs）；这份配置只用来对带 // @ts-check 的文件做类型检查
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["*.cjs"]
+}
