@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DESKTOP_PET_DEFAULTS } from 'cortico-world-desktop-pet';
-import { coopetDirs, loadConfig, mergeInPlace } from '../src/runtime/config.ts';
+import { coopetDirs, deviceId, loadConfig, mergeInPlace } from '../src/runtime/config.ts';
 
 let root: string;
 beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'coopet-config-')); });
@@ -33,20 +33,19 @@ describe('loadConfig', () => {
     const { cfg } = loadConfig(dirs);
     expect(cfg.pet.port).toBe(DESKTOP_PET_DEFAULTS.port);
     expect(cfg.pet.asr.enabled).toBe(false);
-    expect(cfg.link.botAccount).toBe('coopet-maibot');
-    expect(cfg.link.userId).toBe('owner');
-    expect(cfg.link.userNickname).toBe('主人');
-    expect(cfg.link.url).toBe('');
+    expect(cfg.link.kind).toBe('maim');
+    expect(cfg.link.maim).toEqual({ url: '', tokenFile: join(root, 'token'), botAccount: 'coopet-maibot', userId: 'owner', userNickname: '主人' });
+    expect(cfg.link.plugin).toEqual({ url: '', tokenFile: join(root, 'plugin-token') });
     expect(cfg.botName).toBe('MaiBot');
-    expect(cfg.link.tokenFile).toBe(join(root, 'token'));
     expect(existsSync(dirs.configFile)).toBe(false);
   });
 
   it('applies file overrides on top of defaults', () => {
     const dirs = coopetDirs(root);
-    writeFileSync(dirs.configFile, JSON.stringify({ link: { botAccount: 'other' }, pet: { asr: { enabled: true }, window: { scale: 2 } } }));
+    writeFileSync(dirs.configFile, JSON.stringify({ link: { kind: 'plugin', plugin: { url: 'ws://h:18100/ws' } }, pet: { asr: { enabled: true }, window: { scale: 2 } } }));
     const { cfg } = loadConfig(dirs);
-    expect(cfg.link.botAccount).toBe('other');
+    expect(cfg.link.kind).toBe('plugin');
+    expect(cfg.link.plugin).toEqual({ url: 'ws://h:18100/ws', tokenFile: join(root, 'plugin-token') });
     expect(cfg.pet.asr.enabled).toBe(true);
     expect(cfg.pet.window.scale).toBe(2);
     expect(cfg.pet.window.enabled).toBe(true);
@@ -54,13 +53,38 @@ describe('loadConfig', () => {
 
   it('reads botName and keeps other top-level keys when writing back', () => {
     const dirs = coopetDirs(root);
-    writeFileSync(dirs.configFile, JSON.stringify({ botName: '小助手', link: { url: 'ws://h/ws' }, extra: { keep: true } }));
+    writeFileSync(dirs.configFile, JSON.stringify({ botName: '小助手', link: { maim: { url: 'ws://h/ws' } }, extra: { keep: true } }));
     const { cfg, persistPet, flush } = loadConfig(dirs, { debounceMs: 60_000 });
     expect(cfg.botName).toBe('小助手');
-    expect(cfg.link.url).toBe('ws://h/ws');
+    expect(cfg.link.maim.url).toBe('ws://h/ws');
     persistPet({ theme: 'light' });
     flush();
-    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8'))).toEqual({ botName: '小助手', link: { url: 'ws://h/ws' }, extra: { keep: true }, pet: { theme: 'light' } });
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8'))).toEqual({ botName: '小助手', link: { maim: { url: 'ws://h/ws' } }, extra: { keep: true }, pet: { theme: 'light' } });
+  });
+
+  it('migrates the old flat link fields into link.maim', () => {
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ link: { url: 'ws://old/ws', userNickname: '老板' } }));
+    const { cfg, persistPet, flush } = loadConfig(dirs, { debounceMs: 60_000 });
+    expect(cfg.link.maim.url).toBe('ws://old/ws');
+    expect(cfg.link.maim.userNickname).toBe('老板');
+    expect(cfg.link.kind).toBe('maim');
+    persistPet({ theme: 'light' });
+    flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).link).toEqual({ maim: { url: 'ws://old/ws', userNickname: '老板' } });
+  });
+
+  it('rejects an unknown link kind', () => {
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ link: { kind: 'carrier-pigeon' } }));
+    expect(() => loadConfig(dirs)).toThrow(/link.kind/);
+  });
+
+  it('creates a device id once and keeps it', () => {
+    const dirs = coopetDirs(join(root, 'dev'));
+    const first = deviceId(dirs);
+    expect(first).toMatch(/^[0-9a-f-]{36}$/);
+    expect(deviceId(dirs)).toBe(first);
   });
 
   it('refuses a file that is not JSON and leaves it alone', () => {

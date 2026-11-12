@@ -6,7 +6,7 @@
  * 不进入 Maisaka/planner，也不调用 LLM。
  *
  * 用法：corepack pnpm exec tsx scripts/maim-ping.ts [--url <ws-url>] [--text <文本>] [--timeout <秒>]
- * 地址取 --url，没给时取 ~/.config/coopet/config.json 的 link.url；
+ * 地址取 --url，没给时取 ~/.config/coopet/config.json 的 link.maim.url（旧格式 link.url 也认）；
  * token 从 ~/.config/coopet/token 读取，不会打印。
  *
  * 退出码：0 收到回复；1 认证被拒或连接失败；2 超时；3 其他错误。
@@ -52,10 +52,11 @@ if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) {
 function resolveUrl(): string {
   if (args.url) return args.url;
   try {
-    const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as { link?: { url?: unknown } };
-    if (typeof cfg.link?.url === 'string' && cfg.link.url) return cfg.link.url;
+    const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as { link?: { url?: unknown; maim?: { url?: unknown } } };
+    const url = cfg.link?.maim?.url ?? cfg.link?.url;
+    if (typeof url === 'string' && url) return url;
   } catch { /* 没有配置文件或不是 JSON：下面统一报错 */ }
-  console.error(`没有 MaiBot 地址：用 --url 指定，或在 ${CONFIG_FILE} 里填 link.url`);
+  console.error(`没有 MaiBot 地址：用 --url 指定，或在 ${CONFIG_FILE} 里填 link.maim.url`);
   process.exit(EXIT_OTHER);
 }
 

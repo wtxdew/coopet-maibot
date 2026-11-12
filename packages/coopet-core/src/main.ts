@@ -20,17 +20,18 @@ const dirs = coopetDirs();
 const { cfg, persistPet, flush } = loadConfig(dirs, { log });
 const store = new MemoryEventStore();
 
-if (!cfg.link.url) {
-  log.error(`还没配置 MaiBot 的地址：在 ${dirs.configFile} 里填 link.url，例如 ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws`);
+const maim = cfg.link.maim;
+if (!maim.url) {
+  log.error(`还没配置 MaiBot 的地址：在 ${dirs.configFile} 里填 link.maim.url，例如 ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws`);
   process.exit(1);
 }
 
 const link = new MaimLegacyLink({
-  url: cfg.link.url,
-  tokenFile: cfg.link.tokenFile,
+  url: maim.url,
+  tokenFile: maim.tokenFile,
   platform: PLATFORM,
-  botAccount: cfg.link.botAccount,
-  user: { id: cfg.link.userId, nickname: cfg.link.userNickname },
+  botAccount: maim.botAccount,
+  user: { id: maim.userId, nickname: maim.userNickname },
   log: log.child('link'),
 });
 link.onState((s, reason) => log.info(`MaiBot 连接：${s}${reason ? `（${reason}）` : ''}`));

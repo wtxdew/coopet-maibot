@@ -8,6 +8,7 @@
  * 回写时在原对象上合并，不替换。
  */
 
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -15,11 +16,19 @@ import type { DeepPartial } from 'cortico/world.ts';
 import type { Logger } from 'cortico/core/types.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
 
-/** 与 MaiBot 的连接；具体字段在设计 link/ 时再定，这里先放已确定的。 */
-export interface LinkConfig {
-  /** maim_message 旧版 WS 地址 */
+/** 经 coopet-adapter 插件连接（协议 v0，docs/PROTOCOL.md）。身份和 Bot 名字由插件下发。 */
+export interface PluginLinkConfig {
+  /** 插件的 WS 地址，例如 `ws://<MaiBot 主机>:18100/ws` */
   url: string;
-  /** token 文件的绝对路径 */
+  /** 插件 token 文件的绝对路径 */
+  tokenFile: string;
+}
+
+/** 经 maim_message 旧版 WS 连接（阶段 1 的临时通道，保留作备选）。 */
+export interface MaimLinkConfig {
+  /** 例如 `ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws` */
+  url: string;
+  /** maim_message token 文件的绝对路径 */
   tokenFile: string;
   /** 麦麦在 coopet 平台上的账号，须与 MaiBot 的 bot.platforms 一致 */
   botAccount: string;
@@ -27,6 +36,15 @@ export interface LinkConfig {
   userId: string;
   /** 麦麦怎么称呼使用者 */
   userNickname: string;
+}
+
+export type LinkKind = 'plugin' | 'maim';
+
+export interface LinkConfig {
+  /** 用哪种连接 */
+  kind: LinkKind;
+  plugin: PluginLinkConfig;
+  maim: MaimLinkConfig;
 }
 
 export interface CoopetConfig {
@@ -65,16 +83,51 @@ export function coopetDirs(root = join(homedir(), '.config', 'coopet')): CoopetD
 
 /**
  * 默认值里不放任何个人信息：MaiBot 的地址、名字、你的昵称都写在本地的 config.json 里。
- * url 没有默认值，必须在配置里填，例如 `ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws`。
+ * 两种连接的 url 都没有默认值，必须在配置里填。插件部署好之前默认用 maim。
  */
 export function defaultLinkConfig(dirs: CoopetDirs): LinkConfig {
   return {
-    url: '',
-    tokenFile: join(dirs.root, 'token'),
-    botAccount: 'coopet-maibot',
-    userId: 'owner',
-    userNickname: '主人',
+    kind: 'maim',
+    plugin: { url: '', tokenFile: join(dirs.root, 'plugin-token') },
+    maim: {
+      url: '',
+      tokenFile: join(dirs.root, 'token'),
+      botAccount: 'coopet-maibot',
+      userId: 'owner',
+      userNickname: '主人',
+    },
   };
+}
+
+/** 旧格式里直接写在 link 下的 maim 字段（阶段 1）。 */
+const LEGACY_MAIM_KEYS = ['url', 'tokenFile', 'botAccount', 'userId', 'userNickname'] as const;
+
+/** 把旧格式 `link.{url,…}` 挪进 `link.maim`；在原对象上修改。 */
+export function migrateLinkSection(link: Record<string, unknown>): void {
+  const moved: Record<string, unknown> = {};
+  for (const key of LEGACY_MAIM_KEYS) {
+    if (key in link) {
+      moved[key] = link[key];
+      delete link[key];
+    }
+  }
+  if (Object.keys(moved).length === 0) return;
+  const maim = isPlainObject(link.maim) ? link.maim : {};
+  link.maim = { ...moved, ...maim };
+}
+
+/** 本机的设备 id：首次调用时生成并保存在 `<root>/device-id`，之后一直用同一个。 */
+export function deviceId(dirs: CoopetDirs): string {
+  const file = join(dirs.root, 'device-id');
+  try {
+    const saved = readFileSync(file, 'utf8').trim();
+    if (saved) return saved;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+  const id = randomUUID();
+  writeAtomic(file, `${id}\n`);
+  return id;
 }
 
 /** 本项目在桌宠默认值上的改动：阶段 1 关掉语音识别，免得去下载语音模型。 */
@@ -84,7 +137,7 @@ export const COOPET_PET_DEFAULTS: DeepPartial<DesktopPetConfigSection> = {
 
 interface FileShape {
   botName?: string;
-  link?: Partial<LinkConfig>;
+  link?: Record<string, unknown>;
   pet?: DeepPartial<DesktopPetConfigSection>;
   /** 其他顶层字段原样保留，回写时不丢 */
   [key: string]: unknown;
@@ -110,14 +163,15 @@ export interface LoadOptions {
 export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConfig {
   const file = readFile(dirs.configFile);
   // 覆盖层就是文件内容本身：回写时整个写回，文件里的其他字段不会丢
-  const overrides: FileShape = { ...file, link: file.link ?? {}, pet: file.pet ?? {} };
+  const overrides: FileShape = { ...file, link: isPlainObject(file.link) ? file.link : {}, pet: file.pet ?? {} };
+  migrateLinkSection(overrides.link!);
 
   const pet = structuredClone(DESKTOP_PET_DEFAULTS);
   mergeInPlace(pet, COOPET_PET_DEFAULTS);
   mergeInPlace(pet, overrides.pet);
   const cfg: CoopetConfig = {
     botName: typeof file.botName === 'string' && file.botName.trim() ? file.botName : 'MaiBot',
-    link: { ...defaultLinkConfig(dirs), ...overrides.link },
+    link: linkFrom(dirs, overrides.link!),
     pet,
   };
 
@@ -148,6 +202,13 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       write();
     },
   };
+}
+
+function linkFrom(dirs: CoopetDirs, overrides: Record<string, unknown>): LinkConfig {
+  const link = defaultLinkConfig(dirs);
+  mergeInPlace(link, overrides);
+  if (link.kind !== 'plugin' && link.kind !== 'maim') throw new Error(`link.kind 只能是 plugin 或 maim，收到：${String(link.kind)}`);
+  return link;
 }
 
 function readFile(path: string): FileShape {
