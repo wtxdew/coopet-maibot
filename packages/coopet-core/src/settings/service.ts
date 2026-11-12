@@ -21,8 +21,15 @@ import type { Link, LinkState } from '../link/types.ts';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
 const PET_PREFIX = 'worlds.desktop-pet.';
 
-/** 在配置窗里隐藏的桌宠设置：改了容易出问题、我们用不到，或功能还没接（语音识别）。 */
-const HIDDEN_PET_KEYS = new Set(['port', 'window.enabled', 'window.electronFile', 'window.exportOverlay', 'user']);
+/**
+ * 在配置窗里隐藏的桌宠设置：改了容易出问题、我们用不到，或功能还没接（语音识别）。
+ * selfAdjust、touch.enabled、touch.wakeOn 管的是"模型怎么用桌宠"（模型自己改设置、戳摸叫醒模型），
+ * 我们的模型是 MaiBot，不调用这些、戳摸也还不转发，所以现在没有作用。
+ */
+const HIDDEN_PET_KEYS = new Set([
+  'port', 'window.enabled', 'window.electronFile', 'window.exportOverlay', 'user',
+  'selfAdjust', 'touch.enabled', 'touch.wakeOn',
+]);
 const HIDDEN_PET_GROUP_SUFFIXES = [':asr'];
 
 export interface WorldSettings {

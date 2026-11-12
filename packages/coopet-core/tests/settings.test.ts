@@ -51,7 +51,7 @@ describe('SettingsService.get', () => {
     const keys = pet.groups.flatMap((g) => Object.keys(g.schema.properties));
     expect(keys).toContain('worlds.desktop-pet.window.scale');
     expect(keys).toContain('worlds.desktop-pet.theme');
-    for (const hidden of ['port', 'user', 'window.enabled', 'window.electronFile', 'window.exportOverlay']) {
+    for (const hidden of ['port', 'user', 'window.enabled', 'window.electronFile', 'window.exportOverlay', 'selfAdjust', 'touch.enabled', 'touch.wakeOn']) {
       expect(keys).not.toContain(`worlds.desktop-pet.${hidden}`);
     }
     expect(keys.some((k) => k.includes('.asr.'))).toBe(false);
