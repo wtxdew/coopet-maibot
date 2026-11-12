@@ -18,6 +18,6 @@
   "dependencies": [
     {"type": "python_package", "name": "aiohttp", "version_spec": ">=3.14,<4"}
   ],
-  "capabilities": [],
+  "capabilities": ["chat.get_all_streams", "config.get"],
   "i18n": {"default_locale": "zh-CN", "supported_locales": ["zh-CN"]}
 }
