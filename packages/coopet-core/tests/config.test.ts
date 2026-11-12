@@ -39,6 +39,7 @@ describe('loadConfig', () => {
     expect(cfg.botName).toBe('MaiBot');
     expect(cfg.log).toEqual({ level: 'info', file: true });
     expect(dirs.logs).toBe(join(root, 'logs'));
+    expect(dirs.events).toBe(join(root, 'events'));
     expect(existsSync(dirs.configFile)).toBe(false);
   });
 

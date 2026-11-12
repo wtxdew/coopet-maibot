@@ -76,6 +76,8 @@ export interface CoopetDirs {
   models: string;
   /** 日志文件 */
   logs: string;
+  /** 事件记录（对话页的历史） */
+  events: string;
 }
 
 /** 阶段 1 先用 ~/.config/coopet，Mac 和 Windows 都可用；阶段 3 再换成各系统的惯例位置。 */
@@ -89,6 +91,7 @@ export function coopetDirs(root = join(homedir(), '.config', 'coopet')): CoopetD
     runtimes: join(data, 'runtimes'),
     models: join(data, 'models'),
     logs: join(root, 'logs'),
+    events: join(root, 'events'),
   };
 }
 
