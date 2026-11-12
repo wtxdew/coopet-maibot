@@ -1,4 +1,4 @@
-# Coopet 协议 v0（草案，2026-11-12）
+# Coopet 协议 v0（2026-11-12 定稿）
 
 桌宠客户端（`packages/coopet-core` 的 `link/coopet-plugin.ts`）与 MaiBot 适配器插件（`plugins/coopet-adapter/`）之间的协议。
 架构见 [ARCHITECTURE.md](ARCHITECTURE.md) §4.3、§4.4。
