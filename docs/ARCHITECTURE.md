@@ -21,7 +21,7 @@
 **MaiBot 1.4.3、maibot-plugin-sdk 2.22.1、maim-message 0.6.8**；WebUI 映射 `18001:8001`；同机另有 NapCat、AstrBot。
 `maisaka.replyer.before_request` Hook 在该版本存在（`src/chat/replyer/maisaka_generator_base.py`）。
 Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）**全是适配器插件**；
-`maim_message.auth_token` 为空，所以旧版 WS 目前拒绝所有连接，T1 原型需要先加 token。
+原型用的旧版 WS 已打通（2026-11-12）：`maim_message.auth_token` 已配置，`bot.platforms = ["coopet:coopet-maibot"]`。
 
 ## 2. 关键事实（读源码得出）
 
@@ -54,6 +54,15 @@ Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）
 | 官方桌宠远端协议 v1 | ✗ 不用（内部协议、Cookie 登录、每个 Bot 只允许一个连接） |
 
 插件不能把路由挂到 MaiBot 的 Web 端口上，要自己起一个端口（docker-compose 里映射）。
+
+**旧版 WS 客户端的三个前提**（1.4.3 实测，插件不需要后两项）：
+
+1. **token**：`maim_message.auth_token` 不能为空；握手头 `Authorization` 放 token 原文。token 只在启动时读取，改完要重启。
+2. **入站消息顶层带 `account_id`**（字符串，Bot 在该平台的账号）和 `scope`（私聊为 `null`）。缺少时 MaiBot 走旧版归属解析并告警，
+   回复时找不到发送身份（`get_bot_account`）。这两个字段是 MaiBot 的扩展，不属于 maim_message 的 `MessageBase`。
+3. **`bot.platforms` 登记 `平台:账号`**，账号与第 2 条一致。MaiBot 出站统一走 Platform IO：适配器插件自己注册精确路由；
+   旧版连接只能用 legacy 后备驱动，而后备驱动只为 `qq_account` 和 `bot.platforms` 里的平台创建（`_sync_legacy_send_drivers`）。
+   这一项热重载生效。
 
 ## 3. 选型
 
@@ -206,7 +215,8 @@ JSON over WebSocket，`{type, id?, ...}`：
 | 项 | 处理 |
 |---|---|
 | **嵌入桌宠 World 的耦合点**（见下表） | 阶段 1 第一步逐项验证 |
-| maim_message 旧版报文格式要用 TS 重写 | 对照 maim_message 0.6.8 的 `message_base.py` 和 NapCat 适配器的实际报文 |
+| ~~maim_message 旧版报文格式要用 TS 重写~~ | 已完成：`scripts/maim-ping.ts`，对照 0.6.8 的 `message_base.py`，实测通过 |
+| 第三方插件 `TommyAAKK.maibot-I-deepseek` 的 companion-gap 把 coopet 会话当 QQ 会话去补抓历史，报错 | 阶段 2 前只读检查它对非 QQ 平台还做了什么（是否调 LLM），再决定处理方式 |
 | MaiBot 回复形态：多条、不回、主动发言、图片和表情包 | Conductor 按"消息流"设计，不按一问一答；图片先显示占位 |
 | `ctx.llm.generate_with_tools` 能否带图片（电脑操作需要看截图） | 阶段 5 前验证；不行就让 Agent 直连自己的视觉模型 |
 | 插件 WS 端口要在 docker-compose 映射 | 阶段 2 修改 `<MaiBot 部署目录>/docker-compose.yml` |
