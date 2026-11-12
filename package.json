@@ -1,0 +1,37 @@
+{
+  "name": "coopet",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A Coo-style desktop pet client whose brain is MaiBot",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@11.28.6",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test:pet": "cd packages/cortico-world-desktop-pet && vitest run",
+    "typecheck:pet": "cd packages/cortico-world-desktop-pet && tsc --noEmit"
+  },
+  "dependencies": {
+    "cortico-provider-coo": "workspace:*",
+    "cortico-world-desktop-pet": "workspace:*",
+    "express": "^4.22.3",
+    "tsx": "^4.23.15",
+    "undici": "7.29.1",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.25",
+    "@types/node": "^22.20.4",
+    "@types/tar-stream": "3.1.4",
+    "@types/ws": "^8.18.1",
+    "electron": "44.4.4",
+    "esbuild": "^0.28.2",
+    "fflate": "0.8.3",
+    "jsdom": "^30.1.0",
+    "tar-stream": "3.2.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  }
+}
