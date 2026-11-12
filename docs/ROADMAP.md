@@ -37,11 +37,11 @@
 
 - [x] 定稿协议 v0（`docs/PROTOCOL.md`，2026-11-12）
 - [x] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
-  自起 WS 服务、`MessageGateway` 双向收发（单元测试通过，待部署到 NAS 验证）
-- [x] replyer Hook → `thinking`（单元测试通过，待部署到 NAS 验证）
+  自起 WS 服务、`MessageGateway` 双向收发（2026-11-12 在 NAS 上验证往返）
+- [x] replyer Hook → `thinking`（单元测试通过；思考开始的信号待真实聊天验证）
 - [ ] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发（插件端已完成），客户端本地的 `botName` 只作连不上时的后备
-- [ ] docker-compose 映射端口，部署到 NAS
-- [x] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选（`link.kind` 切换；单元测试通过，待部署到 NAS 验证）
+- [x] docker-compose 映射端口，部署到 NAS（2026-11-12）
+- [x] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选（`link.kind` 切换；2026-11-12 在 NAS 上验证往返）
 
 - [ ] 评估聊天体验：在 Mac 上和麦麦正常聊十分钟，记下回复节奏、延迟、表情映射的问题
 - [ ] 不再需要旧版 WS 时，删掉 `bot.platforms` 里的 `coopet:coopet-maibot`
