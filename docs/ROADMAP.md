@@ -36,10 +36,10 @@
 先只做单台设备的适配；多设备同时在线放到后面。
 
 - [x] 定稿协议 v0（`docs/PROTOCOL.md`，2026-11-12）
-- [ ] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
-  自起 WS 服务、`MessageGateway` 双向收发
-- [ ] replyer Hook → `thinking`
-- [ ] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发，客户端本地的 `botName` 只作连不上时的后备
+- [x] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
+  自起 WS 服务、`MessageGateway` 双向收发（单元测试通过，待部署到 NAS 验证）
+- [x] replyer Hook → `thinking`（单元测试通过，待部署到 NAS 验证）
+- [ ] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发（插件端已完成），客户端本地的 `botName` 只作连不上时的后备
 - [ ] docker-compose 映射端口，部署到 NAS
 - [ ] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选
 
