@@ -5,13 +5,14 @@
  * 这些都由这里直接给。启动后桌宠会在 127.0.0.1:<cfg.port> 提供页面，
  * 并自己启动一个 Electron 子进程显示窗口。
  *
- * 对外只暴露 Conductor 需要的四样：调用工具、三个主循环回调（驱动"思考中"等状态）、停止。
+ * 对外暴露：调用工具、三个主循环回调（驱动"思考中"等状态）给 Conductor；
+ * 显示/隐藏窗口、页面地址给外壳；停止。
  */
 
 import { mkdirSync } from 'node:fs';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { EventEnvelope, Logger, RunPhase, ToolOutcome } from 'cortico/core/types.ts';
-import { DesktopPetWorld, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
+import { DesktopPetWorld, type DesktopPetConfigSection, type PetBotControls } from 'cortico-world-desktop-pet';
 import type { CoopetDirs } from './config.ts';
 import type { MemoryEventStore } from './event-store.ts';
 import { createWorldHost, MAIBOT_MODEL_FACTS, type HostedEvent } from './world-host.ts';
@@ -27,6 +28,10 @@ export interface PetHostOptions {
   onEvent: (e: HostedEvent) => void;
   /** 菜单、对话页上显示的名字；每次用到时读 */
   botName: () => string;
+  /** 借给桌宠菜单的控制项（例如退出整个应用）；没有时菜单里不显示对应按钮 */
+  controls?: PetBotControls;
+  /** 桌宠窗口出现在桌面上或离开（显示/隐藏、打开/关闭）时调用 */
+  onDesktopChange?: (onDesktop: boolean) => void;
 }
 
 export interface PetHandle {
@@ -38,6 +43,12 @@ export interface PetHandle {
   turnEnded(): void;
   /** 转给 world.onEventsSettled：在对话页把这些消息标成已送达或已丢弃 */
   settled(events: readonly EventEnvelope[], outcome: 'delivered' | 'discarded'): void;
+  /** 显示桌宠窗口（没开时打开） */
+  show(): void;
+  /** 隐藏桌宠窗口（和桌宠菜单里的"隐藏"一样，窗口保持连接） */
+  hide(): Promise<void>;
+  /** 桌宠页面的地址，例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
+  readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
   stop(): Promise<void>;
 }
@@ -57,6 +68,8 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     packDir: () => dirs.figures,
     language: () => 'zh',
     modelLanguage: () => 'zh',
+    ...(opts.controls ? { controls: opts.controls } : {}),
+    ...(opts.onDesktopChange ? { onDesktopChange: opts.onDesktopChange } : {}),
   });
 
   const host = createWorldHost({
@@ -80,6 +93,12 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     phase: (p) => world.onRunPhase({ ...p, enteredAt: new Date().toISOString() }),
     turnEnded: () => world.onTurnEnded(),
     settled: (events, outcome) => world.onEventsSettled(events, outcome),
+    show: () => world.openWindow(),
+    // 隐藏没有单独的公开方法，走桌宠面板的公开调用入口（Coopanion 的设置窗也走这里）
+    async hide() {
+      await world.webUi('zh').invoke?.('pet', 'hideWindow', []);
+    },
+    origin: `http://127.0.0.1:${opts.cfg.port}`,
     async stop() {
       if (stopped) return;
       stopped = true;
