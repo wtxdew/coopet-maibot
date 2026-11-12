@@ -133,7 +133,8 @@ MaiBot 的 planner 可能决定不回。失败时的 `error.code` 见第 6 节�
 ```
 
 - `on: true`：MaiBot 开始为主人的 coopet 会话生成回复（插件收到 `maisaka.replyer.before_request` Hook）。
-- `on: false`：回复已经发出，或生成结束（`maisaka.replyer.after_response` Hook），或服务端 120 秒内没等到回复。
+- `on: false`：回复已经发到桌宠；或生成结果为空（`maisaka.replyer.after_response` Hook 收到空正文）；或服务端 120 秒内没等到回复。
+  生成出正文时不在 after_response 就结束：MaiBot 还要模拟打字一段时间才发出，等回复真正到达桌宠再结束。
 - planner 决定不回复时 replyer 不会启动，所以**不会**收到 `on: true`。
 
 ## 5. 关闭
