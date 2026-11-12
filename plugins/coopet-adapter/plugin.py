@@ -22,6 +22,7 @@ from .server import ChatResult, CoopetServer
 from .settings import AdapterSettings
 
 GATEWAY_NAME = "coopet_gateway"
+GATEWAY_PROTOCOL = "coopet_ws_v0"
 DEFAULT_BOT_NAME = "MaiBot"
 CONTINUE: Dict[str, Any] = {"action": "continue"}
 
@@ -79,7 +80,12 @@ class CoopetAdapterPlugin(MaiBotPlugin):
             self.ctx.logger.error("Coopet 服务启动失败（端口 %s）：%s", server_cfg.port, exc)
             return
         self._server = server
-        await self._set_ready(True)
+        try:
+            await self._set_ready(True)
+        except Exception as exc:
+            self.ctx.logger.error("向 MaiBot 报告网关就绪失败，停止 Coopet 服务：%s", exc)
+            self._server = None
+            await server.stop()
 
     async def _stop(self) -> None:
         self._cancel_thinking_timer()
@@ -96,7 +102,8 @@ class CoopetAdapterPlugin(MaiBotPlugin):
             ready=ready,
             platform=PLATFORM,
             account_id=self.config.identity.bot_account_id,
-            metadata={"connection": "coopet_ws", "protocol": p.PROTOCOL_VERSION},
+            # 宿主要求 metadata.protocol 是字符串，与网关声明的 protocol 一致
+            metadata={"connection": "coopet_ws", "protocol": GATEWAY_PROTOCOL},
         )
         self._ready = ready and bool(accepted)
         if ready and not accepted:
@@ -150,7 +157,7 @@ class CoopetAdapterPlugin(MaiBotPlugin):
         route_type="duplex",
         name=GATEWAY_NAME,
         platform=PLATFORM,
-        protocol="coopet_ws_v0",
+        protocol=GATEWAY_PROTOCOL,
         description="Coopet 桌宠的文字、图片、表情包双向消息网关",
         timeout_ms=30000,
     )

@@ -29,6 +29,11 @@ class FakeGateway:
         self.routed = []
 
     async def update_state(self, gateway_name, *, ready, platform="", account_id="", scope="", metadata=None):
+        # 和宿主一样校验：metadata.protocol 必须是字符串（MaiBot 1.4.3 实测）
+        if metadata and "protocol" in metadata and not isinstance(metadata["protocol"], str):
+            raise RuntimeError("[E_BAD_PAYLOAD] 消息网关运行时 protocol 必须是字符串")
+        if isinstance(self.ready_ok, Exception):
+            raise self.ready_ok
         self.states.append((gateway_name, ready, platform, account_id))
         return self.ready_ok
 
@@ -225,6 +230,15 @@ async def test_gateway_refuses_wrong_identity_or_no_pet():
         assert result == {"success": False, "error": "桌宠没有连上"}
     finally:
         await plugin.on_unload()
+
+
+async def test_ready_failure_stops_the_server():
+    plugin, ctx, port = make_plugin(gateway=FakeGateway(ready_ok=RuntimeError("宿主拒绝")))
+    await plugin.on_load()
+    with pytest.raises(aiohttp.ClientError):
+        async with aiohttp.ClientSession() as s:
+            await s.ws_connect(f"http://127.0.0.1:{port}/ws")
+    await plugin.on_unload()
 
 
 async def test_disabled_or_no_token_starts_nothing():
