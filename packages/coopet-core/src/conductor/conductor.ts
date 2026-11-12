@@ -1,9 +1,10 @@
 /**
  * 聊天调度（不调用 LLM）：桌宠事件 → link → MaiBot；MaiBot 的消息 → 桌宠气泡。
  *
- * "思考中"只能估计：旧版 WS 收不到 MaiBot 开始生成回复的信号，所以发出消息就显示思考中，
- * 收到第一条回复或超时就结束。MaiBot 的 planner 常常决定不回复，超时不算出错。
- * 阶段 2 改用插件的 replyer Hook 后才准确。
+ * "思考中"有两种来源：
+ * - link 提供 onThinking（插件协议）：完全按 MaiBot 的真实信号显示；ack 成功就把消息标成已送达。
+ * - link 不提供（maim_message）：只能估计。发出消息就显示思考中，收到第一条回复或超时就结束；
+ *   MaiBot 的 planner 常常决定不回复，超时不算出错。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -13,12 +14,12 @@ import type { HostedEvent } from '../runtime/world-host.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
-  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState'>;
+  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState' | 'onThinking'>;
   log: Logger;
   botName: () => string;
   /** 给 MaiBot 的回复加表情动作标记（表情规则 E1）；没有时原样显示 */
   decorate?: (text: string) => string;
-  /** 发出消息后多久没回复就结束"思考中"，默认 30 秒 */
+  /** 估计模式下，发出消息后多久没回复就结束"思考中"，默认 30 秒 */
   thinkingTimeoutMs?: number;
 }
 
@@ -31,12 +32,18 @@ export class Conductor {
   /** 已发给 MaiBot、还没等到回复的事件 */
   private waiting: EventEnvelope[] = [];
   private timer: NodeJS.Timeout | null = null;
+  /** link 提供真实的思考信号 */
+  private readonly realThinking: boolean;
+  /** 真实信号模式下，桌宠当前是否显示着思考中 */
+  private thinking = false;
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
     this.timeoutMs = opts.thinkingTimeoutMs ?? 30_000;
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
+    this.realThinking = typeof opts.link.onThinking === 'function';
+    opts.link.onThinking?.((on) => this.thinkingChanged(on));
   }
 
   /** runtime 的 onEvent 接到这里。 */
@@ -67,6 +74,11 @@ export class Conductor {
     } catch (err) {
       log.warn(`消息没能发给 MaiBot：${(err as Error).message}`);
       await this.notConnected(event);
+      return;
+    }
+    if (this.realThinking) {
+      // ack 成功表示 MaiBot 已收下；会不会回复、什么时候想，由 thinking 信号决定
+      this.opts.pet.settled([event], 'delivered');
       return;
     }
     this.waiting.push(event);
@@ -102,12 +114,25 @@ export class Conductor {
   }
 
   private linkChanged(s: LinkState): void {
-    if (s === 'closed' && this.waiting.length) this.finishTurn('discarded');
+    if (s !== 'closed') return;
+    if (this.waiting.length) this.finishTurn('discarded');
+    else if (this.thinking) this.finishTurn('delivered');
+  }
+
+  private thinkingChanged(on: boolean): void {
+    if (on === this.thinking) return;
+    if (on) {
+      this.thinking = true;
+      this.opts.pet.phase({ state: 'model', running: [] });
+    } else {
+      this.finishTurn('delivered');
+    }
   }
 
   /** 回到空闲，把等待中的事件标成送达或丢弃。 */
   private finishTurn(outcome: 'delivered' | 'discarded'): void {
     this.clearTimer();
+    this.thinking = false;
     const { pet } = this.opts;
     pet.phase({ state: 'idle', running: [] });
     pet.turnEnded();

@@ -10,11 +10,12 @@ type Call =
   | { k: 'turnEnded' }
   | { k: 'settled'; cursors: number[]; outcome: string };
 
-function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean } = {}) {
+function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean } = {}) {
   const calls: Call[] = [];
   const sent: OutgoingChat[] = [];
   let onMessage: (m: IncomingMessage) => void = () => {};
   let onState: (s: LinkState) => void = () => {};
+  let onThinking: (on: boolean) => void = () => {};
   let linkState = state;
   const pet = {
     call: vi.fn(async (_tool: string, args: Record<string, unknown>) => { calls.push({ k: 'say', script: String(args.script) }); return 'ok'; }),
@@ -27,6 +28,7 @@ function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => stri
     send: async (m: OutgoingChat) => { if (opts.sendFails) throw new Error('socket gone'); sent.push(m); return { id: 'x' }; },
     onMessage: (cb: (m: IncomingMessage) => void) => { onMessage = cb; },
     onState: (cb: (s: LinkState) => void) => { onState = cb; },
+    ...(opts.realThinking ? { onThinking: (cb: (on: boolean) => void) => { onThinking = cb; } } : {}),
   };
   const conductor = new Conductor({
     pet, link, log: consoleLogger('test', 'error'), botName: () => '麦麦',
@@ -36,6 +38,7 @@ function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => stri
     conductor, calls, sent,
     incoming: (parts: IncomingMessage['parts']) => onMessage({ parts, receivedAt: Date.now() }),
     setLink: (s: LinkState) => { linkState = s; onState(s); },
+    think: (on: boolean) => onThinking(on),
   };
 }
 
@@ -124,5 +127,45 @@ describe('Conductor', () => {
     await tick();
     expect(t.sent).toEqual([]);
     expect(t.calls).toEqual([]);
+  });
+
+  describe('with real thinking from the link', () => {
+    it('marks a message delivered on ack without guessing thinking', async () => {
+      const t = setup('open', { realThinking: true });
+      t.conductor.handle(said(1, '你好'));
+      await tick();
+      expect(t.sent).toEqual([{ text: '你好' }]);
+      expect(t.calls).toEqual([{ k: 'settled', cursors: [1], outcome: 'delivered' }]);
+    });
+
+    it('shows thinking from the signal and ends it with the reply', async () => {
+      const t = setup('open', { realThinking: true });
+      t.think(true);
+      t.incoming([{ kind: 'text', text: '在呢' }]);
+      await tick();
+      t.think(false); // 回复之后插件才发 off：不应再重复结束
+      expect(t.calls).toEqual([
+        { k: 'phase', state: 'model' },
+        { k: 'phase', state: 'tools' },
+        { k: 'say', script: '在呢' },
+        { k: 'phase', state: 'idle' },
+        { k: 'turnEnded' },
+      ]);
+    });
+
+    it('ends thinking when the signal turns off without a reply', () => {
+      const t = setup('open', { realThinking: true });
+      t.think(true);
+      t.think(true);
+      t.think(false);
+      expect(t.calls).toEqual([{ k: 'phase', state: 'model' }, { k: 'phase', state: 'idle' }, { k: 'turnEnded' }]);
+    });
+
+    it('ends thinking when the link closes', () => {
+      const t = setup('open', { realThinking: true });
+      t.think(true);
+      t.setLink('closed');
+      expect(t.calls.at(-1)).toEqual({ k: 'turnEnded' });
+    });
   });
 });
