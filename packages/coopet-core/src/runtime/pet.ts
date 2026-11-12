@@ -11,7 +11,7 @@
 
 import { mkdirSync } from 'node:fs';
 import type { DeepPartial } from 'cortico/world.ts';
-import type { EventEnvelope, Logger, RunPhase, ToolOutcome } from 'cortico/core/types.ts';
+import type { EventEnvelope, Logger, RunPhase, ToolOutcome, WorldStreamSocket } from 'cortico/core/types.ts';
 import { DesktopPetWorld, type DesktopPetConfigSection, type PetBotControls } from 'cortico-world-desktop-pet';
 import type { CoopetDirs } from './config.ts';
 import type { MemoryEventStore } from './event-store.ts';
@@ -53,6 +53,8 @@ export interface PetHandle {
   toggle(): Promise<void>;
   /** 改了配置对象后调用：把新设置推给桌宠页面（world.refresh） */
   refresh(): void;
+  /** 接一个对话页：桌宠经这个 socket 发历史和新记录（src/chat.ts 的对话流） */
+  openChat(socket: WorldStreamSocket): void;
   /** 桌宠页面的地址，例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
   readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
@@ -123,6 +125,7 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
       else await show();
     },
     refresh: () => world.refresh(),
+    openChat: (socket) => world.webUi('zh').stream?.('chat', socket),
     origin: `http://127.0.0.1:${opts.cfg.port}`,
     async stop() {
       if (stopped) return;
