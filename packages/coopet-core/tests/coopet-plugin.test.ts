@@ -171,4 +171,18 @@ describe('CoopetPluginLink', () => {
     l.start();
     expect(states).toEqual([['closed', 'token']]);
   });
+
+  it('logs handshake time and the close code', async () => {
+    const plugin = await fakePlugin();
+    const lines: string[] = [];
+    const log = { trace() {}, error() {}, warn() {}, emit() {}, debug: (m: string) => lines.push(`D ${m}`), info: (m: string) => lines.push(`I ${m}`), child() { return log; } };
+    const { link: l } = link(plugin.url, { log });
+    l.start();
+    await until(() => l.state() === 'open');
+    plugin.sockets[0].close(1011);
+    await until(() => lines.some((x) => x.startsWith('I 连接断开')));
+    expect(lines.find((x) => x.startsWith('I 已连上插件'))).toMatch(/^I 已连上插件（握手 \d+ms，Bot：麦麦）$/);
+    expect(lines.some((x) => /^D ← welcome \d+ 字节$/.test(x))).toBe(true);
+    expect(lines.find((x) => x.startsWith('I 连接断开'))).toMatch(/^I 连接断开：关闭码 1011，连了 \d+ 秒$/);
+  });
 });

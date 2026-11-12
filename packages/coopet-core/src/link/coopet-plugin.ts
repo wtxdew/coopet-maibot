@@ -55,6 +55,9 @@ export class CoopetPluginLink implements Link {
   private readonly messageListeners: Array<(m: IncomingMessage) => void> = [];
   private readonly stateListeners: Array<(s: LinkState, reason?: string) => void> = [];
   private readonly thinkingListeners: Array<(on: boolean) => void> = [];
+  /** 这次连接开始和连上的时刻，用于记握手耗时和连了多久 */
+  private connectStartedAt = 0;
+  private openedAt = 0;
 
   constructor(opts: CoopetPluginOptions) {
     this.opts = opts;
@@ -118,7 +121,9 @@ export class CoopetPluginLink implements Link {
         reject(new Error(`${this.ackTimeoutMs / 1000} 秒内没收到确认`));
       }, this.ackTimeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      ws.send(JSON.stringify({ type: 'chat', id, text: msg.text }), (err) => {
+      const frame = JSON.stringify({ type: 'chat', id, text: msg.text });
+      this.opts.log.debug(`→ chat ${Buffer.byteLength(frame)} 字节`);
+      ws.send(frame, (err) => {
         if (!err) return;
         clearTimeout(timer);
         this.pending.delete(id);
@@ -144,10 +149,13 @@ export class CoopetPluginLink implements Link {
   private connect(): void {
     if (!this.running) return;
     this.setState('connecting');
+    this.connectStartedAt = Date.now();
+    this.openedAt = 0;
     const ws = new WebSocket(this.opts.url);
     this.ws = ws;
 
     ws.on('open', () => {
+      this.opts.log.debug(`→ hello（WS 已打开 +${Date.now() - this.connectStartedAt}ms）`);
       ws.send(JSON.stringify({
         type: 'hello',
         protocol: PROTOCOL_VERSION,
@@ -172,6 +180,8 @@ export class CoopetPluginLink implements Link {
 
     ws.on('close', (code) => {
       this.stopHeartbeat();
+      const lasted = this.openedAt ? `，连了 ${Math.round((Date.now() - this.openedAt) / 1000)} 秒` : '';
+      this.opts.log.info(`连接断开：关闭码 ${code}${lasted}`);
       if (this.ws === ws) this.ws = null;
       this.failPending('连接断开');
       if (!this.running) return;
@@ -197,11 +207,14 @@ export class CoopetPluginLink implements Link {
       this.opts.log.debug('收到无法解析的帧，已丢弃');
       return;
     }
+    this.opts.log.debug(`← ${String(frame.type)} ${Buffer.byteLength(text)} 字节`);
     switch (frame.type) {
       case 'welcome': {
         const bot = frame.bot as { name?: unknown } | undefined;
         this.name = typeof bot?.name === 'string' && bot.name ? bot.name : undefined;
         this.retryMs = this.backoff.initialMs;
+        this.openedAt = Date.now();
+        this.opts.log.info(`已连上插件（握手 ${this.openedAt - this.connectStartedAt}ms，Bot：${this.name ?? '未知'}）`);
         this.startHeartbeat(ws);
         this.setState('open');
         return;

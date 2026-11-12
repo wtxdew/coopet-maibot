@@ -43,6 +43,9 @@ export class MaimLegacyLink implements Link {
   private pongTimer: NodeJS.Timeout | null = null;
   private readonly messageListeners: Array<(m: IncomingMessage) => void> = [];
   private readonly stateListeners: Array<(s: LinkState, reason?: string) => void> = [];
+  /** 这次连接开始和连上的时刻，用于记握手耗时和连了多久 */
+  private connectStartedAt = 0;
+  private openedAt = 0;
 
   constructor(opts: MaimLegacyOptions) {
     this.opts = opts;
@@ -95,8 +98,10 @@ export class MaimLegacyLink implements Link {
     if (this.current !== 'open' || !ws) return Promise.reject(new Error('还没连上 MaiBot'));
     const message = buildTextMessage({ platform: this.opts.platform, botAccount: this.opts.botAccount, user: this.opts.user, text: msg.text });
     const id = message.message_info.message_id!;
+    const frame = JSON.stringify(message);
+    this.opts.log.debug(`→ 消息 ${Buffer.byteLength(frame)} 字节`);
     return new Promise((resolve, reject) => {
-      ws.send(JSON.stringify(message), (err) => (err ? reject(err) : resolve({ id })));
+      ws.send(frame, (err) => (err ? reject(err) : resolve({ id })));
     });
   }
 
@@ -113,12 +118,16 @@ export class MaimLegacyLink implements Link {
   private connect(): void {
     if (!this.running) return;
     this.setState('connecting');
+    this.connectStartedAt = Date.now();
+    this.openedAt = 0;
     let authFailed = false;
     const ws = new WebSocket(this.opts.url, { headers: { platform: this.opts.platform, Authorization: this.token } });
     this.ws = ws;
 
     ws.on('open', () => {
       this.retryMs = this.backoff.initialMs;
+      this.openedAt = Date.now();
+      this.opts.log.info(`已连上 maim_message（握手 ${this.openedAt - this.connectStartedAt}ms）`);
       this.setState('open');
       this.startHeartbeat(ws);
     });
@@ -143,6 +152,8 @@ export class MaimLegacyLink implements Link {
 
     ws.on('close', (code) => {
       this.stopHeartbeat();
+      const lasted = this.openedAt ? `，连了 ${Math.round((Date.now() - this.openedAt) / 1000)} 秒` : '';
+      this.opts.log.info(`连接断开：关闭码 ${code}${lasted}`);
       if (this.ws === ws) this.ws = null;
       if (!this.running) return;
       if (authFailed || code === AUTH_CLOSE_CODE) {
@@ -189,6 +200,7 @@ export class MaimLegacyLink implements Link {
   }
 
   private receive(text: string): void {
+    this.opts.log.debug(`← 帧 ${Buffer.byteLength(text)} 字节`);
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
