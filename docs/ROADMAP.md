@@ -35,7 +35,7 @@
 
 先只做单台设备的适配；多设备同时在线放到后面。
 
-- [ ] 定稿协议 v0（`docs/PROTOCOL.md`）
+- [x] 定稿协议 v0（`docs/PROTOCOL.md`，2026-11-12）
 - [ ] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
   自起 WS 服务、`MessageGateway` 双向收发
 - [ ] replyer Hook → `thinking`
