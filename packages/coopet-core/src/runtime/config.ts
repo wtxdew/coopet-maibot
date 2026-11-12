@@ -154,10 +154,22 @@ interface FileShape {
   [key: string]: unknown;
 }
 
+/** 桌宠以外、可以在配置窗里改的部分。 */
+export interface AppPatch {
+  botName?: string;
+  log?: Partial<LogConfig>;
+  link?: DeepPartial<LinkConfig>;
+}
+
 export interface LoadedConfig {
   cfg: CoopetConfig;
   /** 桌宠的 `persist`：合并进 `cfg.pet`（原对象）和覆盖层，稍后写回文件。 */
   persistPet(patch: DeepPartial<DesktopPetConfigSection>): void;
+  /**
+   * 改桌宠以外的配置：先按同样的规则检查合并后的结果，不合格就抛错、什么都不改；
+   * 合格才合并进 cfg 和覆盖层，稍后写回文件。连接和日志的改动要重启核心才生效。
+   */
+  persist(patch: AppPatch): void;
   /** 立刻写出还没写的改动；退出前调用。 */
   flush(): void;
 }
@@ -199,14 +211,40 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
     }
   };
 
+  const schedule = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(write, debounceMs);
+  };
+
   return {
     cfg,
     persistPet(patch) {
       mergeInPlace(cfg.pet, patch);
       overrides.pet = overrides.pet ?? {};
       mergeInPlace(overrides.pet, patch);
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(write, debounceMs);
+      schedule();
+    },
+    persist(patch) {
+      if (patch.botName !== undefined && (typeof patch.botName !== 'string' || !patch.botName.trim())) {
+        throw new Error('botName 必须是非空字符串');
+      }
+      // 先在副本上合并、检查，不合格就不动原配置
+      const nextLogRaw = structuredClone(isPlainObject(overrides.log) ? overrides.log : {});
+      mergeInPlace(nextLogRaw, patch.log);
+      const nextLinkRaw = structuredClone(overrides.link ?? {});
+      mergeInPlace(nextLinkRaw, patch.link);
+      const nextLog = logFrom(nextLogRaw);
+      const nextLink = linkFrom(dirs, nextLinkRaw);
+
+      if (patch.botName !== undefined) {
+        overrides.botName = patch.botName;
+        cfg.botName = patch.botName;
+      }
+      if (patch.log) overrides.log = nextLogRaw;
+      if (patch.link) overrides.link = nextLinkRaw;
+      cfg.log = nextLog;
+      cfg.link = nextLink;
+      schedule();
     },
     flush() {
       if (!timer) return;

@@ -86,6 +86,29 @@ describe('loadConfig', () => {
     expect(() => loadConfig(dirs)).toThrow(/log.file/);
   });
 
+  it('persists app settings after checking them, and leaves the config alone when invalid', () => {
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ link: { maim: { url: 'ws://m/ws' } }, pet: { theme: 'light' } }));
+    const { cfg, persist, flush } = loadConfig(dirs, { debounceMs: 60_000 });
+    persist({ link: { kind: 'plugin', plugin: { url: 'ws://p:18100/ws' } }, log: { level: 'debug' }, botName: '小助手' });
+    expect(cfg.link.kind).toBe('plugin');
+    expect(cfg.link.plugin.url).toBe('ws://p:18100/ws');
+    expect(cfg.link.maim.url).toBe('ws://m/ws');
+    expect(cfg.log.level).toBe('debug');
+    expect(cfg.botName).toBe('小助手');
+    expect(() => persist({ log: { level: 'loud' as never } })).toThrow(/log.level/);
+    expect(() => persist({ link: { kind: 'pigeon' as never } })).toThrow(/link.kind/);
+    expect(() => persist({ botName: ' ' })).toThrow(/botName/);
+    expect(cfg.log.level).toBe('debug');
+    flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8'))).toEqual({
+      botName: '小助手',
+      link: { kind: 'plugin', maim: { url: 'ws://m/ws' }, plugin: { url: 'ws://p:18100/ws' } },
+      log: { level: 'debug' },
+      pet: { theme: 'light' },
+    });
+  });
+
   it('rejects an unknown link kind', () => {
     const dirs = coopetDirs(root);
     writeFileSync(dirs.configFile, JSON.stringify({ link: { kind: 'carrier-pigeon' } }));
