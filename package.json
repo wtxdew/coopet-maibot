@@ -12,7 +12,8 @@
   "scripts": {
     "test:pet": "cd packages/cortico-world-desktop-pet && vitest run",
     "typecheck:pet": "cd packages/cortico-world-desktop-pet && tsc --noEmit",
-    "dev": "cd packages/coopet-core && tsx src/main.ts",
+    "build:pet": "cd packages/cortico-world-desktop-pet && node scripts/build-webui.mjs",
+    "dev": "corepack pnpm run build:pet && cd packages/coopet-core && tsx src/main.ts",
     "test:core": "cd packages/coopet-core && vitest run",
     "typecheck:core": "cd packages/coopet-core && tsc --noEmit"
   },
