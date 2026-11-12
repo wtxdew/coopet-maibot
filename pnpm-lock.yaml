@@ -66,6 +66,13 @@ importers:
       cortico-world-desktop-pet:
         specifier: workspace:*
         version: link:../cortico-world-desktop-pet
+      ws:
+        specifier: ^8.21.3
+        version: 8.22.2
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.2
 
   packages/cortico-provider-coo:
     dependencies:

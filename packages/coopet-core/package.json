@@ -14,6 +14,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "cortico-world-desktop-pet": "workspace:*"
+    "cortico-world-desktop-pet": "workspace:*",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1"
   }
 }
