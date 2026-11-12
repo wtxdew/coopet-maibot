@@ -30,7 +30,8 @@ const HIDDEN_PET_KEYS = new Set([
   'port', 'window.enabled', 'window.electronFile', 'window.exportOverlay', 'user',
   'selfAdjust', 'touch.enabled', 'touch.wakeOn',
 ]);
-const HIDDEN_PET_GROUP_SUFFIXES = [':asr'];
+/** 整组隐藏：语音识别（还没接）、电脑操作（阶段 5，有风险，默认关闭） */
+const HIDDEN_PET_GROUP_SUFFIXES = [':asr', ':cua'];
 
 export interface WorldSettings {
   id: string;

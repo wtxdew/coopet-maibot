@@ -55,6 +55,8 @@ describe('SettingsService.get', () => {
       expect(keys).not.toContain(`worlds.desktop-pet.${hidden}`);
     }
     expect(keys.some((k) => k.includes('.asr.'))).toBe(false);
+    expect(keys.some((k) => k.includes('.cua.'))).toBe(false);
+    expect(pet.groups.map((g) => g.id)).toEqual(['world:desktop-pet', 'world:desktop-pet:sound']);
     expect(pet.values['worlds.desktop-pet.window.scale']).toBe(1);
   });
 });
