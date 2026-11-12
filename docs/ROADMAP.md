@@ -39,6 +39,7 @@
 - [ ] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
   自起 WS 服务、`MessageGateway` 双向收发
 - [ ] replyer Hook → `thinking`
+- [ ] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发，客户端本地的 `botName` 只作连不上时的后备
 - [ ] docker-compose 映射端口，部署到 NAS
 - [ ] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选
 
@@ -102,6 +103,8 @@
 
 ## 以后再说
 
+- 部署说明分三种：Docker（插件端口要在 docker-compose 映射）、Windows 和 macOS 直接部署（只需放行防火墙）；
+  目前文档只写了 Docker 的情况
 - 多设备同时在线（Mac 和 Win 共享同一聊天流；一台说的话同步显示到另一台）。上下文由 MaiBot 自己记录
 - 插件要上 MaiBot 官方插件市场时，拆成独立仓库（市场安装是克隆整个仓库，插件必须在仓库根目录），可用 `git subtree split` 保留历史
 
