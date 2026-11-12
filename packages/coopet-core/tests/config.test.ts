@@ -34,6 +34,8 @@ describe('loadConfig', () => {
     expect(cfg.pet.port).toBe(DESKTOP_PET_DEFAULTS.port);
     expect(cfg.pet.asr.enabled).toBe(false);
     expect(cfg.link.botAccount).toBe('coopet-maibot');
+    expect(cfg.link.userId).toBe('owner');
+    expect(cfg.link.userNickname).toBe('主人');
     expect(cfg.link.tokenFile).toBe(join(root, 'token'));
     expect(existsSync(dirs.configFile)).toBe(false);
   });

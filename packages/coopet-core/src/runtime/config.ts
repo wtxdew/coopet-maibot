@@ -23,6 +23,10 @@ export interface LinkConfig {
   tokenFile: string;
   /** 麦麦在 coopet 平台上的账号，须与 MaiBot 的 bot.platforms 一致 */
   botAccount: string;
+  /** 使用者在 coopet 平台上的 user_id */
+  userId: string;
+  /** 麦麦怎么称呼使用者 */
+  userNickname: string;
 }
 
 export interface CoopetConfig {
@@ -62,6 +66,8 @@ export function defaultLinkConfig(dirs: CoopetDirs): LinkConfig {
     url: 'ws://<NAS_IP>:18001/maim/<BOT_ID>/ws',
     tokenFile: join(dirs.root, 'token'),
     botAccount: 'coopet-maibot',
+    userId: 'owner',
+    userNickname: '主人',
   };
 }
 
