@@ -42,6 +42,7 @@ if (PET_HOST) {
 function runApp() {
   const { CoreHost } = require('./core-host.cjs');
   const { createTray } = require('./tray.cjs');
+  const { createSettingsWindow } = require('./settings-window.cjs');
   /** @param {string} msg */
   const log = (msg) => console.log(`[app] ${msg}`);
 
@@ -66,7 +67,26 @@ function runApp() {
   };
   /** @type {{ refresh: () => void } | null} */
   let tray = null;
-  const refresh = () => tray?.refresh();
+  /** @type {ReturnType<typeof createSettingsWindow> | null} */
+  let settings = null;
+  const refresh = () => { tray?.refresh(); settings?.pushStatus(); };
+  const status = () => ({ core: state.core, link: state.link, loginItem: state.loginItem, loginItemAvailable: state.loginItemAvailable });
+  const setLoginItem = (/** @type {boolean} */ on) => {
+    if (!state.loginItemAvailable) return state.loginItem;
+    app.setLoginItemSettings({ openAtLogin: on });
+    state.loginItem = app.getLoginItemSettings().openAtLogin;
+    refresh();
+    return state.loginItem;
+  };
+  const openLogs = () => {
+    mkdirSync(LOGS_DIR, { recursive: true });
+    void shell.openPath(LOGS_DIR);
+  };
+  /** 配置窗里「重启核心」：连接、日志等改动要重启才生效 */
+  const restartCore = async () => {
+    await core.stop();
+    core.start();
+  };
 
   /** @type {BrowserWindow | null} */
   let dressWindow = null;
@@ -89,6 +109,7 @@ function runApp() {
     else if (m?.type === 'link') state.link = { kind: m.kind, state: m.state, reason: m.reason, botName: m.botName };
     else if (m?.type === 'pet') state.onDesktop = !!m.onDesktop;
     else if (m?.type === 'quit') { app.quit(); return; }
+    else if (m?.type === 'open-settings') { settings?.open(); return; }
     refresh();
   });
 
@@ -109,19 +130,24 @@ function runApp() {
   void app.whenReady().then(() => {
     if (process.platform === 'darwin') app.dock?.hide();
     if (state.loginItemAvailable) state.loginItem = app.getLoginItemSettings().openAtLogin;
+    settings = createSettingsWindow({
+      core,
+      getStatus: status,
+      shellActions: {
+        openDress: () => openDress(),
+        openLogs: () => openLogs(),
+        restartCore: () => restartCore(),
+        getStatus: () => status(),
+        setLoginItem: (on) => setLoginItem(on === true),
+      },
+    });
     tray = createTray(() => state, {
+      openSettings: () => settings?.open(),
       // 由核心按桌宠的实时状态决定显示还是隐藏：托盘记的状态可能落后（例如从桌宠自己的菜单隐藏过）
       togglePet: () => core.send({ type: 'toggle-pet' }),
       openDress,
-      setLoginItem: (on) => {
-        app.setLoginItemSettings({ openAtLogin: on });
-        state.loginItem = app.getLoginItemSettings().openAtLogin;
-        refresh();
-      },
-      openLogs: () => {
-        mkdirSync(LOGS_DIR, { recursive: true });
-        void shell.openPath(LOGS_DIR);
-      },
+      setLoginItem: (on) => { setLoginItem(on); },
+      openLogs,
       restartCore: () => core.start(),
       quit: () => app.quit(),
     });

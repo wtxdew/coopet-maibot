@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["*.cjs"]
+  "include": ["*.cjs", "settings/*.cjs"]
 }

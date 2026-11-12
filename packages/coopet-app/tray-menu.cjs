@@ -12,6 +12,7 @@
  *   loginItemAvailable: boolean,
  * }} TrayState
  * @typedef {{
+ *   openSettings: () => void,
  *   togglePet: () => void,
  *   openDress: () => void,
  *   setLoginItem: (on: boolean) => void,
@@ -27,6 +28,7 @@ const LINK_REASON = {
   token: '没有 token 文件',
   protocol: '协议版本不一致',
   replaced: '被另一台设备顶替',
+  'no-url': '还没填地址',
   stopped: '已停止',
 };
 
@@ -56,6 +58,7 @@ function trayTemplate(s, a) {
   const items = [
     { label: statusText(s), enabled: false },
     { type: 'separator' },
+    { label: '设置…', click: a.openSettings },
     { label: s.onDesktop ? '隐藏桌宠' : '显示桌宠', enabled: running, click: a.togglePet },
     { label: '装扮…', enabled: running && !!s.petOrigin, click: a.openDress },
     { type: 'separator' },
