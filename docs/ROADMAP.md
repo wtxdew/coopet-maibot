@@ -21,14 +21,15 @@
 目的是把客户端核心建起来、让桌宠在 Mac 上跑起来；maim_message 只是一根临时测试线，用来验证 `link/` 接口，
 不追求这个阶段的聊天体验。运行方式按方向 B（ARCHITECTURE.md §3.3）：脱离 Cortico Core 的主循环，Cortico 只作为代码库使用。
 
-- [ ] 逐项验证嵌入耦合点（`cortico/*` 导入、`WorldContext` 替身、窗口进程）
-- [ ] `runtime/` 托管 `DesktopPetWorld`（CUA 关、配置走 JSON 文件），代码里直接调 `pet_say` 能冒气泡、做表情
-- [ ] Conductor 骨架：World 事件 → Link；Link 消息 → `pet_say`
-- [ ] 戳、摸、甩只做本地反应
-- [ ] 表情 E1：规则映射
-- [ ] `link/` 接口 + maim_message 旧版实现（从 `scripts/maim-ping.ts` 抽出类型、组包、握手）
+- [x] 逐项验证嵌入耦合点（`cortico/*` 导入、`WorldContext` 替身、窗口进程）：绕过 `definition.ts` 后只需 WorldHost 的 7 个成员加 3 个回调
+- [x] `runtime/` 托管 `DesktopPetWorld`（CUA 关、配置走 JSON 文件），代码里直接调 `pet_say` 能冒气泡、做表情
+- [x] 桌宠网页产物在 `dev` 前自动构建（`build:pet`），换装页可用
+- [x] Conductor 骨架：World 事件 → Link；Link 消息 → `pet_say`
+- [x] 戳、摸、甩只做本地反应（桌宠页面自带，不需要写代码）
+- [x] 表情 E1：规则映射（只输出英文 `<id>` 标记）
+- [x] `link/` 接口 + maim_message 旧版实现（从 `scripts/maim-ping.ts` 抽出类型、组包、握手）
 
-**完成标准**：桌宠在 Mac 上显示；输入一句话，经 WS 到达 MaiBot，回复出现在气泡里。
+**完成标准**：桌宠在 Mac 上显示；输入一句话，经 WS 到达 MaiBot，回复出现在气泡里。✅ 2026-11-12 达成
 
 ## 阶段 2：适配器插件（3–5 天）
 
@@ -78,7 +79,9 @@
 
 - [ ] E2：情绪延续，互动先做本地反应
 - [ ] 图片、表情包在气泡里显示
-- [ ] （可选）E3：让麦麦自己写标记
+- [ ] 扩充 E1 规则表：目前能反应、效果可以，但触发率不高
+- [ ] （可选）E3：让麦麦自己写标记。做法：插件在 `maisaka.replyer.before_request` Hook 里按 `session_id` 判断是 coopet 会话，
+  才往 `extra_prompt` 追加标签说明和可用词表；只有 coopet 会话每次回复多一百来个 token
 - [ ] 主动发言、提醒的展示
 - [ ] 戳、摸、甩的信息传给 MaiBot：参考 Coopanion，但不要那么频繁（比如合并、限频、只传有意义的互动），先讨论方案
 - [ ] MaiBot 回复文字的转义：桌宠脚本没有转义机制，回复里的 `【…】` 和短的 `<…>`、`＜…＞` 会被当成动作标记吃掉；
