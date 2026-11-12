@@ -51,6 +51,8 @@ export interface PetHandle {
   hide(): Promise<void>;
   /** 按实时状态在显示和隐藏之间切换 */
   toggle(): Promise<void>;
+  /** 改了配置对象后调用：把新设置推给桌宠页面（world.refresh） */
+  refresh(): void;
   /** 桌宠页面的地址，例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
   readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
@@ -120,6 +122,7 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
       if (onDesktop()) await hide();
       else await show();
     },
+    refresh: () => world.refresh(),
     origin: `http://127.0.0.1:${opts.cfg.port}`,
     async stop() {
       if (stopped) return;

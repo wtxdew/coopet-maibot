@@ -22,6 +22,8 @@ const FATAL_CLOSE: Record<number, string> = { 4001: 'auth', 4002: 'protocol', 40
 export interface CoopetPluginOptions {
   url: string;
   tokenFile: string;
+  /** 直接给 token（例如配置窗里刚填、还没保存的）；给了就不读 tokenFile */
+  token?: string;
   deviceId: string;
   deviceName: string;
   clientVersion: string;
@@ -70,7 +72,7 @@ export class CoopetPluginLink implements Link {
   start(): void {
     if (this.running) return;
     try {
-      this.token = readFileSync(this.opts.tokenFile, 'utf8').trim();
+      this.token = this.opts.token !== undefined ? this.opts.token.trim() : readFileSync(this.opts.tokenFile, 'utf8').trim();
     } catch (err) {
       this.opts.log.error(`读不到插件 token 文件 ${this.opts.tokenFile}：${(err as NodeJS.ErrnoException).code ?? err}`);
       this.setState('closed', 'token');

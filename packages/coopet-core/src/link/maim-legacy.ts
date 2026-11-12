@@ -17,6 +17,8 @@ import type { IncomingMessage, IncomingPart, Link, LinkState, OutgoingChat } fro
 export interface MaimLegacyOptions {
   url: string;
   tokenFile: string;
+  /** 直接给 token（例如配置窗里刚填、还没保存的）；给了就不读 tokenFile */
+  token?: string;
   platform: string;
   /** Bot 在该平台上的账号，须与 MaiBot 的 bot.platforms 一致 */
   botAccount: string;
@@ -57,7 +59,7 @@ export class MaimLegacyLink implements Link {
   start(): void {
     if (this.running) return;
     try {
-      this.token = readFileSync(this.opts.tokenFile, 'utf8').trim();
+      this.token = this.opts.token !== undefined ? this.opts.token.trim() : readFileSync(this.opts.tokenFile, 'utf8').trim();
     } catch (err) {
       this.opts.log.error(`读不到 token 文件 ${this.opts.tokenFile}：${(err as NodeJS.ErrnoException).code ?? err}`);
       this.setState('closed', 'token');
