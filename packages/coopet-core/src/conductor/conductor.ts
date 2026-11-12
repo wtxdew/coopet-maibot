@@ -5,6 +5,10 @@
  * - link 提供 onThinking（插件协议）：完全按 MaiBot 的真实信号显示；ack 成功就把消息标成已送达。
  * - link 不提供（maim_message）：只能估计。发出消息就显示思考中，收到第一条回复或超时就结束；
  *   MaiBot 的 planner 常常决定不回复，超时不算出错。
+ *
+ * 每轮对话在日志里留一条时间线：`[对话 #游标] 步骤 +距输入的时间`，方便定位延迟。
+ * 回复、思考信号对不上具体是哪条消息引起的，统一按最近一次输入计时；
+ * 距最近一次输入超过 TURN_WINDOW_MS 的回复记成 `[主动]`。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -21,7 +25,14 @@ export interface ConductorOptions {
   decorate?: (text: string) => string;
   /** 估计模式下，发出消息后多久没回复就结束"思考中"，默认 30 秒 */
   thinkingTimeoutMs?: number;
+  /** 时间线用的时钟（毫秒），测试时替换 */
+  now?: () => number;
 }
+
+/** 回复离最近一次输入多久以内，算作这一轮的回复 */
+const TURN_WINDOW_MS = 120_000;
+/** 日志里消息原文最多记多少字 */
+const PREVIEW_CHARS = 30;
 
 /** 使用者说话的事件：打字、语音；原文在 meta.text（event.text 带了给模型看的时间戳前缀）。 */
 const USER_SAID = new Set(['desktop-pet.message', 'desktop-pet.speech']);
@@ -36,10 +47,14 @@ export class Conductor {
   private readonly realThinking: boolean;
   /** 真实信号模式下，桌宠当前是否显示着思考中 */
   private thinking = false;
+  private readonly now: () => number;
+  /** 最近一次输入：时间线以它为起点 */
+  private last: { cursor: number; at: number } | null = null;
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
     this.timeoutMs = opts.thinkingTimeoutMs ?? 30_000;
+    this.now = opts.now ?? Date.now;
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
     this.realThinking = typeof opts.link.onThinking === 'function';
@@ -64,18 +79,22 @@ export class Conductor {
   private async userSaid(event: EventEnvelope): Promise<void> {
     const text = typeof event.meta?.text === 'string' ? event.meta.text.trim() : '';
     if (!text) return;
-    const { link, log } = this.opts;
+    const { link } = this.opts;
+    this.last = { cursor: event.cursor, at: this.now() };
+    this.trace(`输入（${event.type === 'desktop-pet.speech' ? '语音' : '打字'}）：${preview(text)}`, false);
     if (link.state() !== 'open') {
+      this.trace('没连上，未发送', true, 'warn');
       await this.notConnected(event);
       return;
     }
     try {
       await link.send({ text });
     } catch (err) {
-      log.warn(`消息没能发给 MaiBot：${(err as Error).message}`);
+      this.trace(`发送失败：${(err as Error).message}`, true, 'warn');
       await this.notConnected(event);
       return;
     }
+    this.trace(this.realThinking ? 'MaiBot 收下（ack）' : '已发出');
     if (this.realThinking) {
       // ack 成功表示 MaiBot 已收下；会不会回复、什么时候想，由 thinking 信号决定
       this.opts.pet.settled([event], 'delivered');
@@ -85,7 +104,7 @@ export class Conductor {
     this.opts.pet.phase({ state: 'model', running: [] });
     this.clearTimer();
     this.timer = setTimeout(() => {
-      log.info(`${this.timeoutMs / 1000} 秒内 MaiBot 没有回复`);
+      this.trace(`${this.timeoutMs / 1000} 秒内没有回复，结束思考`);
       this.finishTurn('delivered');
     }, this.timeoutMs);
   }
@@ -103,18 +122,21 @@ export class Conductor {
       return '';
     }).join('').trim();
     if (!text) {
-      this.opts.log.debug('MaiBot 的消息里没有能显示的内容');
+      this.trace(`回复里没有能显示的内容（${m.parts.map((p) => p.kind === 'other' ? p.type : p.kind).join('、')}）`);
       return;
     }
+    this.trace(`回复到达（${[...text].length} 字）：${preview(text)}`);
     // TODO（ROADMAP 阶段 6）：显示前转义文字里的【】、<>、＜＞，否则会被当成动作标记吃掉
     const script = this.opts.decorate ? this.opts.decorate(text) : text;
     this.opts.pet.phase({ state: 'tools', running: ['pet_say'] });
     await this.say(script);
+    this.trace('气泡显示');
     this.finishTurn('delivered');
   }
 
   private linkChanged(s: LinkState): void {
     if (s !== 'closed') return;
+    if (this.waiting.length || this.thinking) this.trace('连接断开，本轮结束', true, 'warn');
     if (this.waiting.length) this.finishTurn('discarded');
     else if (this.thinking) this.finishTurn('delivered');
   }
@@ -123,8 +145,10 @@ export class Conductor {
     if (on === this.thinking) return;
     if (on) {
       this.thinking = true;
+      this.trace('思考开始');
       this.opts.pet.phase({ state: 'model', running: [] });
     } else {
+      this.trace('思考结束（没有回复）');
       this.finishTurn('delivered');
     }
   }
@@ -149,8 +173,26 @@ export class Conductor {
     }
   }
 
+  /** 时间线的一行：`[对话 #游标] 步骤 +距输入`；离输入太久或还没有输入时记成 `[主动]`。 */
+  private trace(step: string, withElapsed = true, level: 'info' | 'warn' = 'info'): void {
+    const elapsed = this.last ? this.now() - this.last.at : Infinity;
+    const inTurn = elapsed <= TURN_WINDOW_MS;
+    const tag = inTurn ? `[对话 #${this.last!.cursor}]` : '[主动]';
+    const time = withElapsed && inTurn ? ` +${formatMs(elapsed)}` : '';
+    this.opts.log[level](`${tag} ${step}${time}`);
+  }
+
   private clearTimer(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }
+}
+
+function formatMs(ms: number): string {
+  return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`;
+}
+
+function preview(text: string): string {
+  const chars = [...text.replace(/\s+/g, ' ')];
+  return chars.length > PREVIEW_CHARS ? `${chars.slice(0, PREVIEW_CHARS).join('')}…` : chars.join('');
 }
