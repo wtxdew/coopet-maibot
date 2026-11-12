@@ -14,12 +14,16 @@ import { consoleLogger } from './runtime/log.ts';
 import { startPet } from './runtime/pet.ts';
 
 const PLATFORM = 'coopet';
-const BOT_NAME = '麦麦';
 
 const log = consoleLogger('coopet');
 const dirs = coopetDirs();
 const { cfg, persistPet, flush } = loadConfig(dirs, { log });
 const store = new MemoryEventStore();
+
+if (!cfg.link.url) {
+  log.error(`还没配置 MaiBot 的地址：在 ${dirs.configFile} 里填 link.url，例如 ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws`);
+  process.exit(1);
+}
 
 const link = new MaimLegacyLink({
   url: cfg.link.url,
@@ -40,11 +44,11 @@ const pet = await startPet({
   dirs,
   store,
   log,
-  botName: () => BOT_NAME,
+  botName: () => cfg.botName,
   onEvent: (e) => conductor?.handle(e),
 });
 
-conductor = new Conductor({ pet, link, log: log.child('conductor'), botName: () => BOT_NAME, decorate: createDecorator() });
+conductor = new Conductor({ pet, link, log: log.child('conductor'), botName: () => cfg.botName, decorate: createDecorator() });
 link.start();
 
 let stopping = false;

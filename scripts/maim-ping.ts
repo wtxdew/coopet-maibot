@@ -6,6 +6,7 @@
  * 不进入 Maisaka/planner，也不调用 LLM。
  *
  * 用法：corepack pnpm exec tsx scripts/maim-ping.ts [--url <ws-url>] [--text <文本>] [--timeout <秒>]
+ * 地址取 --url，没给时取 ~/.config/coopet/config.json 的 link.url；
  * token 从 ~/.config/coopet/token 读取，不会打印。
  *
  * 退出码：0 收到回复；1 认证被拒或连接失败；2 超时；3 其他错误。
@@ -20,12 +21,13 @@ import { buildTextMessage, flattenText, isMessageBase } from '../packages/coopet
 
 // ---- 参数 ----
 
-const DEFAULT_URL = 'ws://<NAS_IP>:18001/maim/<BOT_ID>/ws';
 const PLATFORM = 'coopet';
 const TEST_USER = 'coopet-smoke';
 /** 麦麦在 coopet 平台上的账号 */
 const BOT_ACCOUNT = 'coopet-maibot';
-const TOKEN_FILE = join(homedir(), '.config', 'coopet', 'token');
+const CONFIG_DIR = join(homedir(), '.config', 'coopet');
+const TOKEN_FILE = join(CONFIG_DIR, 'token');
+const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 const EXIT_OK = 0;
 const EXIT_CONNECT = 1;
@@ -34,7 +36,7 @@ const EXIT_OTHER = 3;
 
 const { values: args } = parseArgs({
   options: {
-    url: { type: 'string', default: DEFAULT_URL },
+    url: { type: 'string' },
     text: { type: 'string', default: '/list chat' },
     timeout: { type: 'string', default: '10' },
   },
@@ -43,6 +45,17 @@ const { values: args } = parseArgs({
 const timeoutSec = Number(args.timeout);
 if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) {
   console.error(`--timeout 必须是正数，收到：${args.timeout}`);
+  process.exit(EXIT_OTHER);
+}
+
+/** --url 优先，否则读本地配置的 link.url。 */
+function resolveUrl(): string {
+  if (args.url) return args.url;
+  try {
+    const cfg = JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) as { link?: { url?: unknown } };
+    if (typeof cfg.link?.url === 'string' && cfg.link.url) return cfg.link.url;
+  } catch { /* 没有配置文件或不是 JSON：下面统一报错 */ }
+  console.error(`没有 MaiBot 地址：用 --url 指定，或在 ${CONFIG_FILE} 里填 link.url`);
   process.exit(EXIT_OTHER);
 }
 
@@ -63,10 +76,11 @@ function readToken(): string {
 
 // ---- 主流程 ----
 
+const url = resolveUrl();
 const token = readToken();
-console.log(`→ 连接 ${args.url}（platform=${PLATFORM}）`);
+console.log(`→ 连接 ${url}（platform=${PLATFORM}）`);
 
-const ws = new WebSocket(args.url, {
+const ws = new WebSocket(url, {
   headers: { platform: PLATFORM, Authorization: token },
 });
 

@@ -30,6 +30,8 @@ export interface LinkConfig {
 }
 
 export interface CoopetConfig {
+  /** 桌宠菜单、提示里显示的麦麦的名字 */
+  botName: string;
   link: LinkConfig;
   pet: DesktopPetConfigSection;
 }
@@ -61,9 +63,13 @@ export function coopetDirs(root = join(homedir(), '.config', 'coopet')): CoopetD
   };
 }
 
+/**
+ * 默认值里不放任何个人信息：MaiBot 的地址、名字、你的昵称都写在本地的 config.json 里。
+ * url 没有默认值，必须在配置里填，例如 `ws://<NAS 地址>:<WebUI 端口>/maim/<Bot ID>/ws`。
+ */
 export function defaultLinkConfig(dirs: CoopetDirs): LinkConfig {
   return {
-    url: 'ws://<NAS_IP>:18001/maim/<BOT_ID>/ws',
+    url: '',
     tokenFile: join(dirs.root, 'token'),
     botAccount: 'coopet-maibot',
     userId: 'owner',
@@ -77,8 +83,11 @@ export const COOPET_PET_DEFAULTS: DeepPartial<DesktopPetConfigSection> = {
 };
 
 interface FileShape {
+  botName?: string;
   link?: Partial<LinkConfig>;
   pet?: DeepPartial<DesktopPetConfigSection>;
+  /** 其他顶层字段原样保留，回写时不丢 */
+  [key: string]: unknown;
 }
 
 export interface LoadedConfig {
@@ -100,12 +109,17 @@ export interface LoadOptions {
  */
 export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConfig {
   const file = readFile(dirs.configFile);
-  const overrides: FileShape = { link: file.link ?? {}, pet: file.pet ?? {} };
+  // 覆盖层就是文件内容本身：回写时整个写回，文件里的其他字段不会丢
+  const overrides: FileShape = { ...file, link: file.link ?? {}, pet: file.pet ?? {} };
 
   const pet = structuredClone(DESKTOP_PET_DEFAULTS);
   mergeInPlace(pet, COOPET_PET_DEFAULTS);
   mergeInPlace(pet, overrides.pet);
-  const cfg: CoopetConfig = { link: { ...defaultLinkConfig(dirs), ...overrides.link }, pet };
+  const cfg: CoopetConfig = {
+    botName: typeof file.botName === 'string' && file.botName.trim() ? file.botName : 'MaiBot',
+    link: { ...defaultLinkConfig(dirs), ...overrides.link },
+    pet,
+  };
 
   const debounceMs = opts.debounceMs ?? 300;
   let timer: NodeJS.Timeout | null = null;

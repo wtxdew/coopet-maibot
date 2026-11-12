@@ -36,6 +36,8 @@ describe('loadConfig', () => {
     expect(cfg.link.botAccount).toBe('coopet-maibot');
     expect(cfg.link.userId).toBe('owner');
     expect(cfg.link.userNickname).toBe('主人');
+    expect(cfg.link.url).toBe('');
+    expect(cfg.botName).toBe('MaiBot');
     expect(cfg.link.tokenFile).toBe(join(root, 'token'));
     expect(existsSync(dirs.configFile)).toBe(false);
   });
@@ -48,6 +50,17 @@ describe('loadConfig', () => {
     expect(cfg.pet.asr.enabled).toBe(true);
     expect(cfg.pet.window.scale).toBe(2);
     expect(cfg.pet.window.enabled).toBe(true);
+  });
+
+  it('reads botName and keeps other top-level keys when writing back', () => {
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ botName: '小助手', link: { url: 'ws://h/ws' }, extra: { keep: true } }));
+    const { cfg, persistPet, flush } = loadConfig(dirs, { debounceMs: 60_000 });
+    expect(cfg.botName).toBe('小助手');
+    expect(cfg.link.url).toBe('ws://h/ws');
+    persistPet({ theme: 'light' });
+    flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8'))).toEqual({ botName: '小助手', link: { url: 'ws://h/ws' }, extra: { keep: true }, pet: { theme: 'light' } });
   });
 
   it('refuses a file that is not JSON and leaves it alone', () => {
