@@ -33,9 +33,11 @@
 
 ## 阶段 2：适配器插件（3–5 天）
 
+先只做单台设备的适配；多设备同时在线放到后面。
+
 - [ ] 定稿协议 v0（`docs/PROTOCOL.md`）
-- [ ] 插件骨架：manifest、配置（端口、令牌、主人 user_id）、自起 WS 服务、`MessageGateway` 双向收发
-- [ ] 多连接：Mac 和 Win 同时在线，共享同一聊天流
+- [ ] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
+  自起 WS 服务、`MessageGateway` 双向收发
 - [ ] replyer Hook → `thinking`
 - [ ] docker-compose 映射端口，部署到 NAS
 - [ ] 客户端 `link/` 换成插件协议；maim_message 实现保留为备选
@@ -43,7 +45,7 @@
 - [ ] 评估聊天体验：在 Mac 上和麦麦正常聊十分钟，记下回复节奏、延迟、表情映射的问题
 - [ ] 不再需要旧版 WS 时，删掉 `bot.platforms` 里的 `coopet:coopet-maibot`
 
-**完成标准**：两台设备同时在线，任意一台说话，两边都能看到回复；思考动画准确；聊天体验可接受。
+**完成标准**：经插件聊天正常；思考动画准确；聊天体验可接受。
 
 ## 阶段 3：客户端产品化（1–2 周）
 
@@ -99,6 +101,9 @@
 **完成标准**：MaiBot 的独立 Agent 页面能看到本地 Agent 的执行记录，任务结果经 `agent_talk` 回到聊天。
 
 ## 以后再说
+
+- 多设备同时在线（Mac 和 Win 共享同一聊天流；一台说的话同步显示到另一台）。上下文由 MaiBot 自己记录
+- 插件要上 MaiBot 官方插件市场时，拆成独立仓库（市场安装是克隆整个仓库，插件必须在仓库根目录），可用 `git subtree split` 保留历史
 
 - 不同平台的同一个人合并成一个身份（MaiBot 本体没有这个功能，需要另写 MaiBot 插件）；
   目前 coopet 上的"主人"（`owner`）和 QQ 上的账号在 MaiBot 看来是两个人，记忆和印象不共享
