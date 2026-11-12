@@ -14,8 +14,11 @@
     "typecheck:pet": "cd packages/cortico-world-desktop-pet && tsc --noEmit",
     "build:pet": "cd packages/cortico-world-desktop-pet && node scripts/build-webui.mjs",
     "dev": "corepack pnpm run build:pet && cd packages/coopet-core && tsx src/main.ts",
+    "app": "electron packages/coopet-app",
     "test:core": "cd packages/coopet-core && vitest run",
-    "typecheck:core": "cd packages/coopet-core && tsc --noEmit"
+    "typecheck:core": "cd packages/coopet-core && tsc --noEmit",
+    "test:app": "cd packages/coopet-app && vitest run",
+    "typecheck:app": "cd packages/coopet-app && tsc --noEmit -p ."
   },
   "dependencies": {
     "cortico-provider-coo": "workspace:*",
