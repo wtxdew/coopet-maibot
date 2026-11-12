@@ -6,7 +6,9 @@
 
 - [x] 核对 NAS：MaiBot 1.4.3、SDK 2.22.1、maim-message 0.6.8、WebUI 映射 18001、replyer Hook 存在（2026-11-12）
 - [x] Bot ID：`<BOT_ID>`（麦麦）
-- [ ] 在 MaiBot 配置 maim_message 的 token，给原型用（现状：`auth_token` 为空，所以旧版 WS 目前拒绝所有连接；现有适配器全是插件，不受影响；改 token 预计要重启 Bot）
+- [x] 在 MaiBot 配置 maim_message 的 token，给原型用（token 只在启动时读取，改完要重启 Bot；另需 `bot.platforms` 登记
+  `coopet:coopet-maibot`，热重载生效。见 ARCHITECTURE.md §2.3）
+- [x] 连通性测试：`scripts/maim-ping.ts` 发 `/list chat`，收到 MaiBot 的无权限提示（不经 LLM）（2026-11-12）
 - [x] 本机环境：Node 24.5、corepack pnpm 11.28.6、Electron 44.4.4
 - [x] 建仓：pnpm workspace；`packages/cortico-world-desktop-pet`、`packages/cortico-provider-coo`、`shared/ui` 从 Coopanion vendored，
   `vendor/cortico` 为子模块（钉在 Coopanion 用的 0.2.14），来源记录在 `UPSTREAM.md`；LICENSE 为 AGPL-3.0
