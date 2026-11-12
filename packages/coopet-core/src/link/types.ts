@@ -36,4 +36,11 @@ export interface Link {
   onMessage(cb: (m: IncomingMessage) => void): void;
   /** 状态变化；closed 时 reason 说明原因，例如 'auth'、'token'、'stopped' 或关闭码 */
   onState(cb: (s: LinkState, reason?: string) => void): void;
+  /**
+   * MaiBot 的真实思考信号（插件协议有，maim_message 没有）。
+   * 提供了这个方法，Conductor 就用它驱动"思考中"，不再自己估计。
+   */
+  onThinking?(cb: (on: boolean) => void): void;
+  /** 连上后 MaiBot 设置里的 Bot 名字（插件在握手时下发）；不知道时为 undefined */
+  botName?(): string | undefined;
 }
