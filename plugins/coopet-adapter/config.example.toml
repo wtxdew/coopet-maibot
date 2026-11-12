@@ -1,0 +1,13 @@
+[plugin]
+enabled = false
+config_version = "0.1.0"
+
+[server]
+host = "0.0.0.0"
+port = 18100
+token = ""
+
+[identity]
+bot_account_id = "coopet-maibot"
+owner_user_id = "owner"
+owner_nickname = "主人"
