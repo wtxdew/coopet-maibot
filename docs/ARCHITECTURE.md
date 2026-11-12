@@ -75,6 +75,19 @@ Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）
 
 自建 Electron 应用，嵌入桌宠 World（C1"Coopanion 本体 + 扩展"已否决）。
 
+### 3.3 桌宠的运行方式：方向 B（2026-11-12 定）
+
+| | A：跑 Cortico Core | **B：Cortico 当库，自己托管 World（选定）** |
+|---|---|---|
+| 桌宠怎么动 | 只能由"模型"调用 `pet_say`（Persona 不能绕过模型直接调 World 工具） | Conductor 直接调 `pet_say` 等工具的 handler |
+| 零 token 聊天 | 要写假 provider，把每次"模型调用"换成问 MaiBot | 天然零 token |
+| MaiBot 多条回复、不回、主动发言 | 和 Core 一问一答的模型对不上 | 收到就显示 |
+| 桌宠 World 适配 | 零适配 | `runtime/` 提供 WorldContext/WorldHost 的替身（见 §7 耦合点） |
+| 多余负担 | 会话、上下文交接、token 计数、记忆，对聊天都没用；多一层子进程通信 | 无 |
+
+- 仍然依赖 Cortico 的代码：桌宠 World 的 `cortico/*` 导入由 `vendor/cortico` 子模块提供；去掉的只是 Core 的主循环。
+- 本地 Agent（阶段 4）恰好是"LLM + 工具循环"，届时专门评估是否直接用 Cortico Core 跑。
+
 ## 4. 目标形态
 
 ```
@@ -206,7 +219,7 @@ JSON over WebSocket，`{type, id?, ...}`：
 
 | 耦合点 | 具体情况 | 打算怎么处理 |
 |---|---|---|
-| `cortico/*` 模块导入 | 约 60 处导入：`core/language.ts`（29 处）、`core/types.ts`、`core/util.ts`、`world.ts`、`core/config-schema.ts`、`core/template.ts`、`paths.ts`、`extensions/runtime.ts`、`web/shared/client-panel.ts`、`protocol/open-responses`。在 Cortico 里由模块钩子解析 | 装 npm 上的 `cortico` 包（就是框架 `src/`），用 tsx 运行；钉死版本 |
+| `cortico/*` 模块导入 | 约 60 处导入：`core/language.ts`（29 处）、`core/types.ts`、`core/util.ts`、`world.ts`、`core/config-schema.ts`、`core/template.ts`、`paths.ts`、`extensions/runtime.ts`、`web/shared/client-panel.ts`、`protocol/open-responses`。在 Cortico 里由模块钩子解析 | 用 `vendor/cortico` 子模块（钉在 0.2.14），tsconfig 路径 `cortico/*` → `vendor/cortico/src/*`，用 tsx 运行 |
 | `cortico-provider-coo` 导入 | 只有语音转写服务地址用到它（`src/asr/transcription-api.ts`） | 一起装上，或者打补丁去掉 |
 | `WorldContext` 提供的东西 | `persist()` 写回配置、`secret()`/`storeSecret()` 存密钥、`dataDir` 下的 `figures/` 形象包目录、`runtimesRoot()`/`modelsRoot()` 语音模型目录 | `runtime/` 自己实现：配置文件、系统钥匙串或加密文件、应用数据目录 |
 | Electron 窗口进程 | World 自己按顺序找 Electron 来启动窗口，嵌入方可以用 `CORTICO_DESKTOP_PET_HOST` 接管 | 由我们的 Electron 主进程打开窗口 |
