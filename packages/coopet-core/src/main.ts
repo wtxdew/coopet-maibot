@@ -6,6 +6,7 @@
  */
 
 import { Conductor } from './conductor/conductor.ts';
+import { createDecorator } from './expr/decorate.ts';
 import { MaimLegacyLink } from './link/maim-legacy.ts';
 import { coopetDirs, loadConfig } from './runtime/config.ts';
 import { MemoryEventStore } from './runtime/event-store.ts';
@@ -43,7 +44,7 @@ const pet = await startPet({
   onEvent: (e) => conductor?.handle(e),
 });
 
-conductor = new Conductor({ pet, link, log: log.child('conductor'), botName: () => BOT_NAME });
+conductor = new Conductor({ pet, link, log: log.child('conductor'), botName: () => BOT_NAME, decorate: createDecorator() });
 link.start();
 
 let stopping = false;
