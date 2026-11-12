@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- 本地页面：只加载自己目录里的脚本和样式 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+<title>Coopet 设置</title>
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<header class="status">
+  <span id="status-text">正在读取…</span>
+  <button type="button" id="restart" hidden>重启核心使改动生效</button>
+</header>
+<div class="layout">
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-tab="connection" aria-selected="true">连接</button>
+    <button type="button" role="tab" data-tab="worlds">World</button>
+    <button type="button" role="tab" data-tab="chat">对话</button>
+    <button type="button" role="tab" data-tab="general">日志与通用</button>
+  </nav>
+  <main>
+    <section id="tab-connection" class="tab">
+      <h2>连接 MaiBot</h2>
+      <div class="field">
+        <span class="field-title">连接方式</span>
+        <div class="field-control radios">
+          <label><input type="radio" name="kind" value="plugin"> 插件（coopet-adapter）</label>
+          <label><input type="radio" name="kind" value="maim"> maim_message（旧版，备选）</label>
+        </div>
+      </div>
+      <fieldset id="plugin-fields">
+        <legend>插件</legend>
+        <label class="field"><span class="field-title">地址</span><input class="field-control" id="plugin-url" type="text" placeholder="ws://<MaiBot 主机>:18100/ws"></label>
+        <label class="field"><span class="field-title">token</span><input class="field-control" id="plugin-token" type="password" autocomplete="off"></label>
+      </fieldset>
+      <fieldset id="maim-fields">
+        <legend>maim_message</legend>
+        <label class="field"><span class="field-title">地址</span><input class="field-control" id="maim-url" type="text" placeholder="ws://<主机>:<WebUI 端口>/maim/<Bot ID>/ws"></label>
+        <label class="field"><span class="field-title">token</span><input class="field-control" id="maim-token" type="password" autocomplete="off"></label>
+        <label class="field"><span class="field-title">麦麦的账号</span><input class="field-control" id="maim-botAccount" type="text"></label>
+        <label class="field"><span class="field-title">你的 user_id</span><input class="field-control" id="maim-userId" type="text"></label>
+        <label class="field"><span class="field-title">麦麦怎么称呼你</span><input class="field-control" id="maim-userNickname" type="text"></label>
+      </fieldset>
+      <p class="hint">token 只能写入，不会显示；留空表示不改。</p>
+      <div class="actions">
+        <button type="button" id="test">测试连接</button>
+        <button type="button" id="save-connection" class="primary">保存</button>
+      </div>
+      <p id="connection-result" class="result" role="status"></p>
+    </section>
+
+    <section id="tab-worlds" class="tab" hidden>
+      <h2>World</h2>
+      <p class="hint">每个 World 是一组能力。标着"重启核心后生效"的项要点保存并重启；其余改了马上生效。</p>
+      <div id="worlds"></div>
+    </section>
+
+    <section id="tab-chat" class="tab" hidden>
+      <h2>对话</h2>
+      <p class="hint">你和桌宠的互动记录。只显示，不在这里发消息。</p>
+      <button type="button" id="chat-more" hidden>加载更早的记录</button>
+      <ol id="chat" class="chat"></ol>
+    </section>
+
+    <section id="tab-general" class="tab" hidden>
+      <h2>日志</h2>
+      <label class="field"><span class="field-title">日志级别</span>
+        <select class="field-control" id="log-level">
+          <option value="error">error（只记错误）</option>
+          <option value="warn">warn</option>
+          <option value="info">info（默认）</option>
+          <option value="debug">debug（排查问题时用）</option>
+          <option value="trace">trace</option>
+        </select>
+      </label>
+      <label class="field"><span class="field-title">写日志文件</span><input class="field-control" id="log-file" type="checkbox"></label>
+      <div class="actions">
+        <button type="button" id="open-logs">打开日志文件夹</button>
+        <button type="button" id="save-general" class="primary">保存</button>
+      </div>
+      <p id="general-result" class="result" role="status"></p>
+      <h2>通用</h2>
+      <label class="field"><span class="field-title">开机自启</span><input class="field-control" id="login-item" type="checkbox"></label>
+      <p class="hint" id="login-hint"></p>
+    </section>
+  </main>
+</div>
+<script src="render.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>
