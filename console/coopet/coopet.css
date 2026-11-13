@@ -8,6 +8,12 @@
 /* 连接卡：分段按钮按内容宽度，不拉满（它在 .home-picker 的第二列） */
 .home-picker > .segwrap { justify-self: start; }
 
+/* 连接卡的 token 框：输入框加「生成」「复制」两个小按钮，整栏放宽一些 */
+.home-keyrow > label.home-modelfield { flex: 0 1 360px; }
+.coopet-tokenbox { display: flex; align-items: center; gap: 6px; }
+.coopet-tokenbox > input { flex: 1; min-width: 0; }
+.coopet-tokenbox > .btn { flex: none; }
+
 /* 对话页：没有头像时的名字首字（features/chat/index.ts 的 Coopet 本地修改），样式同侧边栏的 */
 .chat-avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; font: 600 13px/1 var(--sans); color: var(--foreground); }
 

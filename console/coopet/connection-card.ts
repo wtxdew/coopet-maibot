@@ -6,6 +6,8 @@
  * - 连接方式：插件（推荐）/ maim_message（旧版），分段按钮；切换只改显示的输入框，按「保存并连接」才生效。
  * - 输入框：插件是地址和 token；maim_message 另有 Bot 账号、你的 user_id、你的昵称。
  *   token 框已设置时显示"已设置，留空不改"；真实的 token 不会传到页面上。
+ * - token 框旁的「生成」填入一个随机 token（32 个字符，约 190 位）并显示出来，「复制」复制框里的内容，
+ *   拿去粘贴到 MaiBot 的插件设置里。已保存的 token 页面拿不到，所以只能复制框里正在填的。
  * - 「保存并连接」：写配置组 `coopet.link`（/api/config），核心马上换上新连接；之后最多等 8 秒，报告连上了还是没连上的原因。
  */
 
@@ -42,6 +44,9 @@ const S = pick({
     token: 'token',
     tokenKept: '已设置，留空不改',
     tokenNeeded: '必填',
+    generate: '生成',
+    copy: '复制',
+    generated: '已生成随机 token：复制后粘贴到 MaiBot 插件设置的 token 里，再点「保存并连接」。',
     botAccount: 'Bot 账号',
     userId: '你的 user_id',
     userNickname: '你的昵称',
@@ -78,6 +83,9 @@ const S = pick({
     token: 'Token',
     tokenKept: 'Set; leave empty to keep',
     tokenNeeded: 'Required',
+    generate: 'Generate',
+    copy: 'Copy',
+    generated: 'Generated a random token: copy it into the token in MaiBot\'s plugin settings, then click Save and connect.',
     botAccount: 'Bot account',
     userId: 'Your user_id',
     userNickname: 'Your nickname',
@@ -106,6 +114,12 @@ function reasonText(reason: string | undefined): string {
   if (/^\d+$/.test(reason)) return (S.reasons.code as (c: string) => string)(reason);
   const known = S.reasons[reason];
   return typeof known === 'string' ? known : reason;
+}
+
+/** 随机 token：24 个随机字节的 base64url，32 个字符 */
+function randomToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 const errText = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -140,7 +154,20 @@ export function connectionCard(ctx: Pick<PageContext, 'ui' | 'signal' | 'lifecyc
 
   const urlField = ui.field(S.pluginUrl, pluginUrl);
   const maimUrlField = ui.field(S.maimUrl, maimUrl);
-  const tokenField = ui.field(S.token, token);
+  const generate = ui.button(S.generate, { size: 'sm', onClick: () => {
+    token.value = randomToken();
+    token.type = 'text';
+    msg.classList.remove('bad');
+    msg.textContent = S.generated;
+    syncCopy();
+  } });
+  const copy = ui.copyButton(() => token.value, { label: S.copy });
+  /** 框里没有内容时没东西可复制 */
+  const syncCopy = () => { copy.disabled = !token.value; };
+  token.addEventListener('input', syncCopy, opts);
+  const tokenBox = ui.h('span', 'coopet-tokenbox');
+  tokenBox.append(token, generate, copy);
+  const tokenField = ui.field(S.token, tokenBox);
   tokenField.classList.add('home-modelfield');
   const save = ui.button(S.save, { variant: 'primary' });
   const keyRow = ui.rowbar();
@@ -209,6 +236,8 @@ export function connectionCard(ctx: Pick<PageContext, 'ui' | 'signal' | 'lifecyc
     try {
       await setConfig(GROUP, values, opts);
       token.value = '';
+      token.type = 'password';
+      syncCopy();
       msg.textContent = S.saved;
       // 等新连接有结果：连上、被拒（关闭且有原因），或者超时
       const started = Date.now();
@@ -229,6 +258,7 @@ export function connectionCard(ctx: Pick<PageContext, 'ui' | 'signal' | 'lifecyc
   }, opts);
 
   render();
+  syncCopy();
   void readValues().catch(() => {});
   void readStatus();
   ctx.lifecycle.interval(() => void readStatus(), POLL_MS);
