@@ -177,6 +177,8 @@ async function mount(ctx: PageContext): Promise<void> {
     const img = doc.createElement('img');
     img.src = AVATAR_URL;
     img.alt = '';
+    // Coopet 本地修改：没有头像（/api/avatar 是 404）时显示名字的第一个字，和侧边栏一样，不显示破图
+    img.addEventListener('error', () => img.replaceWith(ui.h('span', 'chat-avatar-fallback', [...bot][0] ?? '')), { once: true });
     a.append(img);
     return a;
   };
