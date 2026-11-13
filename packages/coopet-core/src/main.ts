@@ -25,13 +25,19 @@ import { DisconnectedLink } from './link/disconnected.ts';
 import { WebApp } from 'cortico/web/server.ts';
 import { createSurface } from './webui/surface.ts';
 import { prepareWebAssets } from './webui/assets.ts';
+import { extensionWorlds } from './webui/extension-worlds.ts';
+import { routeGroup } from './webui/route-settings.ts';
+import { loadWorldExtensions } from './runtime/extensions.ts';
+import { WorldRuntime } from './runtime/worlds.ts';
+import { SecretStore } from './runtime/secrets.ts';
+import { join } from 'node:path';
 
 const PLATFORM = 'coopet';
 const CLIENT_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 const dirs = coopetDirs();
 // 读配置时还不知道日志级别和要不要写文件：这一步的提示只写到终端
-const { cfg, persistPet, persist, flush } = loadConfig(dirs, { log: consoleLogger('coopet') });
+const { cfg, persistPet, persist, flush, worldSection, persistWorld } = loadConfig(dirs, { log: consoleLogger('coopet') });
 // 本次运行的结构化日志（设置窗「运行诊断」读它），和 Cortico 的格式一致
 const runlog = openRunlog(dirs.data);
 // 级别和写不写文本文件每次现读配置：设置窗里改了马上生效
@@ -92,8 +98,23 @@ const pet = await startPet({
   onDesktopChange: (onDesktop) => shell?.send({ type: 'pet', onDesktop }),
 });
 
-conductor = new Conductor({ pet, link, log: log.child('conductor'), botName, decorate: createDecorator() });
+conductor = new Conductor({
+  pet, link, log: log.child('conductor'), botName, decorate: createDecorator(),
+  routeOf: (worldId) => cfg.routes[worldId]?.mode ?? 'auto',
+  language: () => cfg.language,
+});
 link.start();
+
+// World 扩展：从 ~/.config/coopet/extensions 加载（Cortico 的加载器），启用的启动起来；事件交给 Conductor 路由
+const extensions = await loadWorldExtensions(dirs, log.child('extensions'));
+const worlds = new WorldRuntime({
+  definitions: extensions.worlds,
+  config: { worldSection, persistWorld },
+  secrets: new SecretStore(join(dirs.root, 'secrets.json')),
+  dirs, store, log: log.child('worlds'), botName,
+  onEvent: (worldId, e) => conductor?.worldEvent(worldId, e),
+});
+await worlds.startAll();
 
 /** 设置窗的后端（只在被外壳启动时开）：只监听 127.0.0.1，端口由系统分配 */
 let web: WebApp | null = null;
@@ -107,6 +128,7 @@ async function shutdown(signal: string): Promise<void> {
     conductor?.stop();
     await link.stop();
     await web?.stop();
+    await worlds.stopAll();
     await pet.stop();
   } finally {
     flush();
@@ -134,7 +156,12 @@ if (shell) {
     runlog, version: CLIENT_VERSION, startedAt: STARTED_AT,
     conversation: () => conductor?.stats() ?? null,
     applyLink,
-    webDistDir: prepareWebAssets(dirs.data, webLog),
+    extensions: extensionWorlds({
+      runtime: worlds, persistWorld, records: extensions.records,
+      extraConfig: (worldId, language) => [routeGroup(worldId, language)],
+    }),
+    activation: { set: (id, enabled) => worlds.set(id, enabled), restart: (id) => worlds.restart(id) },
+    webDistDir: prepareWebAssets(dirs.data, webLog, undefined, extensions.webUiAssets),
   }));
   const webPort = await web.start(0);
   log.info(`设置窗后端：http://127.0.0.1:${webPort}/`);
