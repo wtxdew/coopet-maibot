@@ -178,7 +178,12 @@ export class CoopetPluginLink implements Link {
       this.pongTimer = null;
     });
 
-    ws.on('error', (err) => this.opts.log.debug(`连接错误：${err.message}`));
+    // 记成警告：关闭码（常见 1006）看不出原因，真正的原因在这里（ECONNREFUSED、EHOSTUNREACH 等）。
+    // 重试有退避（最长 30 秒一次），不会刷屏
+    ws.on('error', (err) => {
+      const code = (err as NodeJS.ErrnoException).code;
+      this.opts.log.warn(`连接错误：${err.message}${code && !err.message.includes(code) ? `（${code}）` : ''}`);
+    });
 
     ws.on('close', (code) => {
       this.stopHeartbeat();
