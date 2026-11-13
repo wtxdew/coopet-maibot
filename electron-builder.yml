@@ -14,6 +14,13 @@ npmRebuild: false
 nodeGypRebuild: false
 files:
   - "**/*"
+# 自动更新（packages/coopet-app/updater.cjs）去哪里找新版本。pack.mjs 用 --publish never 打包，这里只让 electron-builder
+# 在安装包旁边生成 latest.yml（Windows）/ latest-mac.yml，并把 app-update.yml 写进应用；发布时把它们和安装包一起传到 Release。
+# 更新器和标题栏只认正式 Release，不认 pre-release
+publish:
+  provider: github
+  owner: wtxdew
+  repo: coopet-maibot
 # 不签名的个人构建：macOS 用临时签名（"-"，Apple 芯片上必须有签名才能运行），第一次打开要在
 # 「系统设置 → 隐私与安全性」里点「仍要打开」；不进 Dock（LSUIElement），只在菜单栏有图标。
 mac:

@@ -9,7 +9,8 @@
  *   工作区的包（桌宠、cortico-provider-coo）拷成真目录放进 node_modules。
  * 打包后检查目标架构的原生包在不在，缺了就失败。
  *
- * 运行：`corepack pnpm run pack`。输出在 dist/：macOS 是 Coopet-<版本>-mac-<架构>.dmg 和 .zip，Windows 是 Coopet-Setup-<版本>.exe。
+ * 运行：`corepack pnpm run pack`。输出在 dist/：macOS 是 Coopet-<版本>-mac-<架构>.dmg 和 .zip，Windows 是 Coopet-Setup-<版本>.exe；
+ * 旁边还有自动更新要的 latest-mac.yml / latest.yml 和 .blockmap，发布时一起上传。
  * `PACK_ARCH`（x64 或 arm64）构建另一种架构；`PACK_PLATFORM=win32` 在 macOS 上交叉构建 Windows 安装包：
  * npm 按 `--os=win32` 装 Windows 的预编译原生包，electron-builder 在 macOS 上就能打 NSIS 安装包（不签名时不需要 Wine）。
  */
@@ -48,6 +49,9 @@ const DEPS = {
   pnpm: rootPkg.packageManager.replace(/^pnpm@/, ''),
   'cortico-world-coding-agent-notify': rootPkg.dependencies['cortico-world-coding-agent-notify'],
 };
+// 外壳自己的依赖（自动更新的 electron-updater）
+const appPkg = JSON.parse(readFileSync(join(ROOT, 'packages', 'coopet-app', 'package.json'), 'utf8'));
+for (const [dep, version] of Object.entries(appPkg.dependencies ?? {})) if (!version.startsWith('workspace:')) DEPS[dep] = version;
 for (const name of WORKSPACE) {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'packages', name, 'package.json'), 'utf8'));
   for (const [dep, version] of Object.entries(pkg.dependencies ?? {})) if (!WORKSPACE.includes(dep)) DEPS[dep] = version;

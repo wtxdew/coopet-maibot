@@ -10,6 +10,7 @@ so that upstream changes can be merged. Record every sync here.
 | `shared/ui` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `shared/ui` (imported by the pet's WebUI panels) | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-12 | AGPL-3.0-or-later |
 | `console` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `console` (the settings window front end) | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-13 | AGPL-3.0-or-later |
 | `cortico-world-coding-agent-notify` (npm dependency, bundled as a built-in World extension, unchanged; not copied into this repo) | [ThermalEng/coopanion-agent-notify-world](https://github.com/ThermalEng/coopanion-agent-notify-world), npm `cortico-world-coding-agent-notify` | `1.2.0` (pinned) | 2026-11-13 | AGPL-3.0-or-later |
+| `packages/coopet-app/updater.cjs`, `packages/coopet-app/tests/updater.test.ts` (copied files; only the release address and test import paths changed) | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `app/updater.cjs`, `tests/updater.test.js` | `9b814fd` | 2026-11-14 | AGPL-3.0-or-later |
 | `vendor/cortico` (git submodule) | [Pal-AI-Lab/Cortico](https://github.com/Pal-AI-Lab/Cortico) | `fd2cbcccac394a09d1dee2ce4eae710bd9f7458a` (0.2.14, the commit Coopanion pins) | 2026-11-12 | MIT |
 
 Local changes to vendored code (each marked `Coopet 本地修改` in the source):

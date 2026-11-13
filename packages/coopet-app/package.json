@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "coopet-core": "workspace:*",
-    "cortico-world-desktop-pet": "workspace:*"
+    "cortico-world-desktop-pet": "workspace:*",
+    "electron-updater": "^6.8.11"
   }
 }
