@@ -169,14 +169,18 @@ function runExtCli(args) {
   const { readFileSync } = require('node:fs');
   const { runExt } = require('./ext-cli.cjs');
   const { DATA_DIR } = require('./paths.cjs');
-  let pnpmCjs;
+  const { dirname, join } = require('node:path');
+  // pnpm 包只开放 package.json（exports 的 "."），入口按它的 bin 字段找
+  let pkgFile;
   try {
-    pnpmCjs = require.resolve('pnpm/bin/pnpm.cjs');
+    pkgFile = require.resolve('pnpm');
   } catch {
     console.error('这个 Coopet 没有带 pnpm（开发时请用 corepack pnpm run ext）');
     process.exit(1);
   }
-  const { version } = JSON.parse(readFileSync(require.resolve('pnpm/package.json'), 'utf8'));
+  const pkg = JSON.parse(readFileSync(pkgFile, 'utf8'));
+  const version = pkg.version;
+  const pnpmCjs = join(dirname(pkgFile), typeof pkg.bin === 'string' ? pkg.bin : pkg.bin.pnpm);
   const code = runExt(args, {
     dataRoot: DATA_DIR,
     packageManager: `pnpm@${version}`,
