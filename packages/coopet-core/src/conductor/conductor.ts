@@ -2,7 +2,8 @@
  * 聊天调度（不调用 LLM）：桌宠事件 → link → MaiBot；MaiBot 的消息 → 桌宠气泡。
  *
  * "思考中"有两种来源：
- * - link 提供 onThinking（插件协议）：完全按 MaiBot 的真实信号显示；ack 成功就把消息标成已送达。
+ * - link 有真实的思考信号（插件协议）：完全按 MaiBot 的信号显示；ack 成功就把消息标成已送达。
+ *   连接可以在运行中被换掉（link/switch.ts），所以每轮发消息时现问一次有没有信号（hasThinking）。
  * - link 不提供（maim_message）：只能估计。发出消息就显示思考中，收到第一条回复或超时就结束；
  *   MaiBot 的 planner 常常决定不回复，超时不算出错。
  *
@@ -18,7 +19,7 @@ import type { HostedEvent } from '../runtime/world-host.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
-  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState' | 'onThinking'>;
+  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState' | 'onThinking' | 'hasThinking'>;
   log: Logger;
   botName: () => string;
   /** 给 MaiBot 的回复加表情动作标记（表情规则 E1）；没有时原样显示 */
@@ -43,8 +44,6 @@ export class Conductor {
   /** 已发给 MaiBot、还没等到回复的事件 */
   private waiting: EventEnvelope[] = [];
   private timer: NodeJS.Timeout | null = null;
-  /** link 提供真实的思考信号 */
-  private readonly realThinking: boolean;
   /** 真实信号模式下，桌宠当前是否显示着思考中 */
   private thinking = false;
   private readonly now: () => number;
@@ -57,8 +56,13 @@ export class Conductor {
     this.now = opts.now ?? Date.now;
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
-    this.realThinking = typeof opts.link.onThinking === 'function';
     opts.link.onThinking?.((on) => this.thinkingChanged(on));
+  }
+
+  /** 当前连接有没有真实的思考信号 */
+  private get realThinking(): boolean {
+    const { link } = this.opts;
+    return link.hasThinking ? link.hasThinking() : typeof link.onThinking === 'function';
   }
 
   /** runtime 的 onEvent 接到这里。 */
@@ -94,8 +98,9 @@ export class Conductor {
       await this.notConnected(event);
       return;
     }
-    this.trace(this.realThinking ? 'MaiBot 收下（ack）' : '已发出');
-    if (this.realThinking) {
+    const real = this.realThinking;
+    this.trace(real ? 'MaiBot 收下（ack）' : '已发出');
+    if (real) {
       // ack 成功表示 MaiBot 已收下；会不会回复、什么时候想，由 thinking 信号决定
       this.opts.pet.settled([event], 'delivered');
       return;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventEnvelope, RunPhase } from 'cortico/core/types.ts';
 import { Conductor } from '../src/conductor/conductor.ts';
+import { LinkSwitch } from '../src/link/switch.ts';
 import type { IncomingMessage, LinkState, OutgoingChat } from '../src/link/types.ts';
 import { consoleLogger } from '../src/runtime/log.ts';
 
@@ -167,5 +168,48 @@ describe('Conductor', () => {
       t.setLink('closed');
       expect(t.calls.at(-1)).toEqual({ k: 'turnEnded' });
     });
+  });
+});
+
+describe('with a switchable link', () => {
+  /** 最小的内部连接：一直是 open，发出的消息记下来 */
+  const inner = (withThinking: boolean) => {
+    const listeners: Array<(on: boolean) => void> = [];
+    return {
+      start() {}, async stop() {}, state: () => 'open' as LinkState,
+      send: async () => ({ id: 'x' }), onMessage() {}, onState() {},
+      ...(withThinking ? { onThinking: (cb: (on: boolean) => void) => { listeners.push(cb); } } : {}),
+      think: (on: boolean) => { for (const cb of listeners) cb(on); },
+    };
+  };
+
+  it('asks each turn whether the current link has real thinking', async () => {
+    const plugin = inner(true);
+    const sw = new LinkSwitch(plugin);
+    const calls: Call[] = [];
+    const pet = {
+      call: vi.fn(async () => 'ok'),
+      phase: (p: Omit<RunPhase, 'enteredAt'>) => { calls.push({ k: 'phase', state: p.state }); },
+      turnEnded: () => {},
+      settled: (events: readonly EventEnvelope[], outcome: string) => { calls.push({ k: 'settled', cursors: events.map((e) => e.cursor), outcome }); },
+    };
+    const conductor = new Conductor({ pet, link: sw, log: consoleLogger('test', 'error'), botName: () => '麦麦', thinkingTimeoutMs: 1000 });
+    sw.start();
+
+    conductor.handle(said(1, '你好'));
+    await tick();
+    // 插件：ack 即送达，不自己估计思考
+    expect(calls).toEqual([{ k: 'settled', cursors: [1], outcome: 'delivered' }]);
+    plugin.think(true);
+    expect(calls.at(-1)).toEqual({ k: 'phase', state: 'model' });
+
+    calls.length = 0;
+    await sw.replace(inner(false));
+    calls.length = 0;
+    conductor.handle(said(2, '在吗'));
+    await tick();
+    // maim_message：发出就显示思考中（估计）
+    expect(calls).toEqual([{ k: 'phase', state: 'model' }]);
+    conductor.stop();
   });
 });
