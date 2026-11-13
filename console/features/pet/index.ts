@@ -398,19 +398,16 @@ async function mount(ctx: PageContext): Promise<void> {
 
   // sections: general, how Coo behaves and is reached, how it shows on the screen, sounds, computer use;
   // every row names its setting on the left, except one that only refines the row above it
+  // Coopet 本地修改：去掉「称呼」（MaiBot 自己决定怎么称呼你）、「Coo 的名字」（名字来自 MaiBot）、「使用统计」（不收集）
   habits.body.append(
     row(S.language, language, S.languageHint),
-    row(S.user, user, S.userHint),
-    row(S.botName, botName, S.botNameHint),
     launchAtLoginRow,
     autoUpdateRow,
-    row(S.statsLabel, statsBox, S.statsHint),
   );
   const behavior = ui.sheet({ title: S.groupBehavior });
   behavior.body.append(
     row(S.roam, roam.el),
-    row(S.wake, wake.el, wakeHint),
-    row(S.self, selfMode.el, selfHint),
+    // Coopet 本地修改：去掉「回应模式」「自主配置权限」（管的是模型怎么用桌宠，MaiBot 不用）
     row(S.hover, hoverBox, S.hoverHint(MAX_HOVER)),
     row(S.dblclickLabel, dblclick.el),
     row(S.typeKeyLabel, typeBox, typeHint),
@@ -534,7 +531,8 @@ async function mount(ctx: PageContext): Promise<void> {
     speedRow,
   );
   const cua = cuaSection(ctx, row);
-  root.append(sounds.el, speechSheet.el, cua.el);
+  // Coopet 本地修改：不显示「电脑操作」（阶段 5 再说）
+  root.append(sounds.el, speechSheet.el);
 
   /* ---------- other: the OBS overlay, the context ring ---------- */
   const other = ui.sheet({ title: S.groupOther });
@@ -549,7 +547,8 @@ async function mount(ctx: PageContext): Promise<void> {
   overlayBox.append(overlay.el, overlayUrlBox);
   const ring = ui.checkbox(S.ring, { onChange: (on) => void save(RING_KEY, on, STATS_GROUP, ring.el) });
   other.body.append(row(S.overlayLabel, overlayBox, S.overlayHint), row(S.ringLabel, ring.el, S.ringHint));
-  root.append(other.el);
+  // Coopet 本地修改：不显示「其他」（OBS 叠加层、对话页的上下文圈）
+  void other;
 
   /* ---------- behaviour ---------- */
   const save = (key: string, value: string | number | boolean, group: string, anchor: HTMLElement) => saveAll({ [key]: value }, group, anchor);
