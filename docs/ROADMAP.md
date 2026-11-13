@@ -63,7 +63,9 @@
     托盘和桌宠菜单的装扮、对话、World 打开设置窗对应页面；删掉旧的手写设置页和 IPC 设置通道（2026-11-13，在真实外壳里检查过，界面待你确认）
   - [x] 第三期：运行诊断页（运行状态卡、对话统计、事件流、运行日志、日志设置、导出诊断包）；每次运行一份结构化日志
     （Cortico 格式，保留 7 天），文本日志照旧；日志级别马上生效（2026-11-13，在真实外壳里检查过）
-- [ ] World 运行时与第一个自己的 World：WebHook（从阶段 4 提前，先于本地 Agent；先单独设计）
+- [ ] World 扩展（从阶段 4 提前，先于本地 Agent）：加载 Cortico 格式的 World 扩展；第一个用第三方的
+  `cortico-world-coding-agent-notify`（ThermalEng，Claude Code 等 Coding Agent 完成后通知）；
+  Conductor 按来源路由事件（桌宠直接说 / 交给麦麦 / 不处理）。原定的本地 WebHook 不做：笔电收不到外部请求
 - [x] 复用桌宠自带的装扮页和形象包导入（托盘「装扮…」打开 `/dress`）
 - [ ] 打包 macOS arm64、Windows x64
 - [x] 断线重连、离线提示；没确认的消息不自动重发（阶段 1、2 的 link 与 Conductor 已实现；托盘显示连接状态）
@@ -119,6 +121,8 @@
   目前文档只写了 Docker 的情况
 - 多设备同时在线（Mac 和 Win 共享同一聊天流；一台说的话同步显示到另一台）。上下文由 MaiBot 自己记录
 - 插件要上 MaiBot 官方插件市场时，拆成独立仓库（市场安装是克隆整个仓库，插件必须在仓库根目录），可用 `git subtree split` 保留历史
+- 改过或自己写的 World 扩展拆成单独的仓库，并标明来源和许可（例如 fork agent-notify 时注明来自 ThermalEng）；不放进客户端仓库
+- 外部服务的通知：WebHook 打到 NAS 上的插件，经现有的 WebSocket 推给桌宠；或做一个通用的订阅通道（ntfy 这类推送服务）
 
 - 不同平台的同一个人合并成一个身份（MaiBot 本体没有这个功能，需要另写 MaiBot 插件）；
   目前 coopet 上的"主人"（`owner`）和 QQ 上的账号在 MaiBot 看来是两个人，记忆和印象不共享
