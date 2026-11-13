@@ -10,7 +10,7 @@ import { coopetDirs, loadConfig } from '../src/runtime/config.ts';
 import { consoleLogger } from '../src/runtime/log.ts';
 import { MemoryEventStore } from '../src/runtime/event-store.ts';
 import { createSurface } from '../src/webui/surface.ts';
-import { prepareWebAssets } from '../src/webui/assets.ts';
+import { petPackageDir, prepareWebAssets } from '../src/webui/assets.ts';
 
 const apps: WebApp[] = [];
 afterEach(async () => { for (const a of apps.splice(0)) await a.stop(); });
@@ -161,6 +161,10 @@ describe('webui surface', () => {
 });
 
 describe('prepareWebAssets', () => {
+  it('finds the pet package by its name', () => {
+    expect(existsSync(join(petPackageDir(), 'src', 'index.ts'))).toBe(true);
+  });
+
   it('writes an empty manifest when the panel script is not built', () => {
     const root = mkdtempSync(join(tmpdir(), 'coopet-assets-'));
     const out = prepareWebAssets(root, consoleLogger('test', 'error'), join(root, 'no-pet'));

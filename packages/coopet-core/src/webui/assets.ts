@@ -15,9 +15,12 @@ import type { Logger } from 'cortico/core/types.ts';
 import { WEBUI_PROTOCOL_VERSION, assetKeyForPage, pageIdFor, type WebUiAssetEntry } from 'cortico/web/shared/webui-protocol.ts';
 import { PET_WORLD_ID } from './surface.ts';
 
-/** 桌宠包的目录（按包名解析，不写死相对路径） */
+/**
+ * 桌宠包的目录（按包名解析，不写死相对路径）。包的 exports 没有开放 package.json，
+ * 所以解析包的入口（src/index.ts），再往上一层。
+ */
 export function petPackageDir(): string {
-  return dirname(createRequire(import.meta.url).resolve('cortico-world-desktop-pet/package.json'));
+  return dirname(dirname(createRequire(import.meta.url).resolve('cortico-world-desktop-pet')));
 }
 
 /** 准备 webDistDir，返回它的路径。 */
