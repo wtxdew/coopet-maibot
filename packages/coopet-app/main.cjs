@@ -13,6 +13,8 @@ const { join } = require('node:path');
 const { APP_ROOT, CORE_ENTRY, CORE_ROOT, CORTICO_RESOLVER, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
 
 const PET_HOST = process.argv.includes('--pet-host');
+/** `Coopet --ext list|add|remove …`：装扩展的命令行入口（ext-cli.cjs），做完就退出，不启动应用 */
+const EXT = process.argv.indexOf('--ext');
 
 /**
  * 取 `--name=value` 形式的参数值
@@ -23,7 +25,9 @@ function arg(name) {
   return hit ? hit.slice(name.length + 3) : '';
 }
 
-if (PET_HOST) {
+if (EXT >= 0) {
+  runExtCli(process.argv.slice(EXT + 1));
+} else if (PET_HOST) {
   // 窗口进程用自己的 Chromium 配置目录，不和 app 模式抢单实例锁
   app.setPath('userData', join(ELECTRON_DATA_DIR, 'pet-window'));
   if (process.platform === 'darwin') app.dock?.hide();
@@ -153,4 +157,32 @@ function runApp() {
     });
     core.start();
   });
+}
+
+/**
+ * `--ext`：用应用里带的 pnpm（打包时装进 node_modules/pnpm）在数据目录的 extensions/ 里装卸扩展。
+ * pnpm 用 Electron 自己的程序以 Node 模式运行。开发时没有带 pnpm，提示改用 corepack pnpm run ext。
+ * @param {string[]} args
+ */
+function runExtCli(args) {
+  const { spawnSync } = require('node:child_process');
+  const { readFileSync } = require('node:fs');
+  const { runExt } = require('./ext-cli.cjs');
+  const { DATA_DIR } = require('./paths.cjs');
+  let pnpmCjs;
+  try {
+    pnpmCjs = require.resolve('pnpm/bin/pnpm.cjs');
+  } catch {
+    console.error('这个 Coopet 没有带 pnpm（开发时请用 corepack pnpm run ext）');
+    process.exit(1);
+  }
+  const { version } = JSON.parse(readFileSync(require.resolve('pnpm/package.json'), 'utf8'));
+  const code = runExt(args, {
+    dataRoot: DATA_DIR,
+    packageManager: `pnpm@${version}`,
+    pnpm: (pnpmArgs, cwd) => spawnSync(process.execPath, [pnpmCjs, ...pnpmArgs], {
+      cwd, stdio: 'inherit', env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    }).status ?? 1,
+  });
+  process.exit(code);
 }
