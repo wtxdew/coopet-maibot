@@ -5,6 +5,7 @@
  */
 const { homedir } = require('node:os');
 const { join } = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 /** 本包所在目录（开发时 Electron 以它为应用目录启动） */
 const APP_ROOT = __dirname;
@@ -28,6 +29,12 @@ module.exports = {
   APP_ROOT,
   CORE_ROOT,
   CORE_ENTRY: join(CORE_ROOT, 'src', 'main.ts'),
+  /**
+   * Cortico 的解析钩子（vendor/cortico/src/extensions/runtime.ts）：把任何文件里的 `cortico/…` 导入指到 Cortico 源码。
+   * 核心自己的文件靠 tsconfig 的 paths 就行，但打包后桌宠包和扩展在 node_modules 里，tsx 不对那里套用 paths，
+   * 所以核心启动时 `--import` 它（Cortico 给引擎子进程也是这么做的）。
+   */
+  CORTICO_RESOLVER: pathToFileURL(join(APP_ROOT, '..', '..', 'vendor', 'cortico', 'src', 'extensions', 'runtime.ts')).href,
   DATA_DIR,
   LOGS_DIR: join(DATA_DIR, 'logs'),
   /** Electron 自己的数据（Chromium 配置、单实例锁），与桌宠窗口进程分开 */

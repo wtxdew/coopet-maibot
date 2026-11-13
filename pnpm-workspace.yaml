@@ -7,6 +7,8 @@ allowBuilds:
   koffi: true
   # Tailwind CLI 的文件监听，只有 --watch 才用；我们不用，不跑它的安装脚本
   '@parcel/watcher': false
+  # electron-builder 带的 Squirrel 安装器；我们的 Windows 版用 NSIS，不需要它
+  electron-winstaller: false
 
 minimumReleaseAgeExclude:
   - electron@44.4.4

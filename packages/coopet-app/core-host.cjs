@@ -2,7 +2,8 @@
 /**
  * 启动并看住核心子进程（coopet-core/src/main.ts）。
  *
- * - 启动：用 Electron 自己的程序以 Node 模式运行（ELECTRON_RUN_AS_NODE=1），`--import tsx` 直接跑 TypeScript；
+ * - 启动：用 Electron 自己的程序以 Node 模式运行（ELECTRON_RUN_AS_NODE=1），`--import tsx` 直接跑 TypeScript，
+ *   再 `--import` preload 里的模块；
  *   工作目录是核心包，tsx 才会读到它的 tsconfig。主进程与核心之间用 Node 的 IPC（process.send）互发 JSON。
  * - 崩溃重启：意外退出后等 3 秒再启动；5 分钟内超过 5 次就放弃（状态 failed）。
  * - 停止：先发 SIGTERM（核心会停 link、关桌宠窗口、写回配置），5 秒没退就 SIGKILL。
@@ -24,6 +25,7 @@ const STOP_TIMEOUT_MS = 5000;
  *   cwd: string,
  *   execPath: string,
  *   env: NodeJS.ProcessEnv,
+ *   preload?: string[],
  *   fork?: typeof nodeFork,
  *   setTimeout?: (fn: () => void, ms: number) => unknown,
  *   clearTimeout?: (handle: any) => void,
@@ -105,7 +107,8 @@ class CoreHost extends EventEmitter {
     const child = this._fork(entry, [], {
       cwd,
       execPath,
-      execArgv: ['--import', 'tsx'],
+      // tsx 运行 TypeScript；preload 里的模块随后加载（Cortico 的 cortico/* 解析钩子，见 paths.cjs）
+      execArgv: ['--import', 'tsx', ...(this.opts.preload ?? []).flatMap((m) => ['--import', m])],
       env: { ...env, ELECTRON_RUN_AS_NODE: '1' },
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });

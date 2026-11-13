@@ -10,7 +10,7 @@
 const { app, shell } = require('electron');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
-const { APP_ROOT, CORE_ENTRY, CORE_ROOT, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
+const { APP_ROOT, CORE_ENTRY, CORE_ROOT, CORTICO_RESOLVER, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
 
 const PET_HOST = process.argv.includes('--pet-host');
 
@@ -52,6 +52,7 @@ function runApp() {
     entry: CORE_ENTRY,
     cwd: CORE_ROOT,
     execPath: process.execPath,
+    preload: [CORTICO_RESOLVER],
     env: { ...process.env, CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost) },
     log: (msg) => console.log(`[core-host] ${msg}`),
   });

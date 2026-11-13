@@ -1,0 +1,47 @@
+# 把 build/app（scripts/pack.mjs 拼出来的应用目录）打包成 macOS 的 .dmg / .zip 或 Windows 的安装包。
+# pack.mjs 以 build/app 为项目目录运行 electron-builder，所以这里的相对路径从 build/app 算起，
+# node_modules 用的是 build/app 里 npm 装好的那份（按目标平台和架构）。
+appId: app.coopet.desktop
+productName: Coopet
+copyright: Copyright © 2026 Coopet contributors
+electronVersion: 44.4.4
+directories:
+  output: ../../dist
+  buildResources: packages/coopet-app/icons
+# 核心用 tsx 直接运行 TypeScript 源码，还要启动 esbuild、koffi、pnpm：文件不压缩进 asar（和 Coopanion 一样）
+asar: false
+npmRebuild: false
+nodeGypRebuild: false
+files:
+  - "**/*"
+# 不签名的个人构建：macOS 用临时签名（"-"，Apple 芯片上必须有签名才能运行），第一次打开要在
+# 「系统设置 → 隐私与安全性」里点「仍要打开」；不进 Dock（LSUIElement），只在菜单栏有图标。
+mac:
+  target:
+    - target: dmg
+    - target: zip
+  category: public.app-category.lifestyle
+  icon: packages/coopet-app/icons/icon.png
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  artifactName: Coopet-${version}-mac-${arch}.${ext}
+  extendInfo:
+    LSUIElement: true
+dmg:
+  writeUpdateInfo: false
+# Windows：按用户安装（不要管理员权限），可以选安装位置；不签名，第一次运行 SmartScreen 会拦一下，点「仍要运行」。
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: packages/coopet-app/icons/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Coopet
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  artifactName: Coopet-Setup-${version}.exe

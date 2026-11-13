@@ -19,7 +19,7 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function harness() {
+function harness(extra: Record<string, unknown> = {}) {
   const children: FakeChild[] = [];
   const forks: Array<{ entry: string; opts: any }> = [];
   let clock = 0;
@@ -31,6 +31,7 @@ function harness() {
     clearTimeout: (t: any) => { if (t) t.done = true; },
     now: () => clock,
     log: () => {},
+    ...extra,
   });
   const states: string[] = [];
   host.on('state', (s: string) => states.push(s));
@@ -49,6 +50,12 @@ describe('CoreHost', () => {
     expect(h.forks[0].opts).toMatchObject({ cwd: '/core', execPath: '/Electron', execArgv: ['--import', 'tsx'], env: { A: '1', ELECTRON_RUN_AS_NODE: '1' } });
     expect(h.forks[0].opts.stdio).toContain('ipc');
     expect(h.states).toEqual(['starting']);
+  });
+
+  it('imports preload modules after tsx', () => {
+    const h = harness({ preload: ['file:///app/vendor/cortico/src/extensions/runtime.ts'] });
+    h.host.start();
+    expect(h.forks[0].opts.execArgv).toEqual(['--import', 'tsx', '--import', 'file:///app/vendor/cortico/src/extensions/runtime.ts']);
   });
 
   it('becomes running on ready and relays messages both ways', () => {
