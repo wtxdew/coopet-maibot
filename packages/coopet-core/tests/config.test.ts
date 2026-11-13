@@ -177,3 +177,19 @@ describe('language', () => {
     expect(loadConfig(dirs).cfg.language).toBe('zh');
   });
 });
+
+describe('world sections', () => {
+  it('gives one live object per world, defaults under the file overlay, and writes changes back', () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-worlds-'));
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ worlds: { notify: { enabled: true } } }));
+    const loaded = loadConfig(dirs, { debounceMs: 0 });
+    const section = loaded.worldSection('notify', { enabled: false, port: 1, tags: ['a'] });
+    expect(section).toEqual({ enabled: true, port: 1, tags: ['a'] });
+    expect(loaded.worldSection('notify', { enabled: false })).toBe(section);
+    loaded.persistWorld('notify', { port: 2, tags: ['b', 'c'] });
+    expect(section).toEqual({ enabled: true, port: 2, tags: ['b', 'c'] });
+    loaded.flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).worlds).toEqual({ notify: { enabled: true, port: 2, tags: ['b', 'c'] } });
+  });
+});

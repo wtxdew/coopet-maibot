@@ -176,6 +176,8 @@ interface FileShape {
   botName?: string;
   link?: Record<string, unknown>;
   pet?: DeepPartial<DesktopPetConfigSection>;
+  /** 扩展 World 的配置覆盖层：worlds.<id>，只存改过的项 */
+  worlds?: Record<string, Record<string, unknown>>;
   /** 其他顶层字段原样保留，回写时不丢 */
   [key: string]: unknown;
 }
@@ -197,6 +199,13 @@ export interface LoadedConfig {
    * 合格才合并进 cfg 和覆盖层，稍后写回文件。连接和日志的改动要重启核心才生效。
    */
   persist(patch: AppPatch): void;
+  /**
+   * 扩展 World 的配置段：默认值 ← worlds.<id> 覆盖层。同一个 id 每次返回同一个活对象，
+   * World 每次用到配置时读它（和桌宠的 cfg.pet 一样）。
+   */
+  worldSection<S extends object>(id: string, defaults: S): S;
+  /** 合并进 worldSection(id) 的活对象和覆盖层，稍后写回文件（数组整体替换）。 */
+  persistWorld(id: string, patch: Record<string, unknown>): void;
   /** 立刻写出还没写的改动；退出前调用。 */
   flush(): void;
 }
@@ -227,6 +236,8 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
     pet,
   };
 
+  /** 扩展 World 的活配置对象，按 id */
+  const sections = new Map<string, object>();
   const debounceMs = opts.debounceMs ?? 300;
   let timer: NodeJS.Timeout | null = null;
 
@@ -279,6 +290,24 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.link) overrides.link = nextLinkRaw;
       cfg.log = nextLog;
       cfg.link = nextLink;
+      schedule();
+    },
+    worldSection<S extends object>(id: string, defaults: S): S {
+      const known = sections.get(id);
+      if (known) return known as S;
+      const section = structuredClone(defaults);
+      const worlds = isPlainObject(overrides.worlds) ? overrides.worlds : {};
+      mergeInPlace(section, worlds[id]);
+      sections.set(id, section);
+      return section;
+    },
+    persistWorld(id, patch) {
+      const section = sections.get(id);
+      if (section) mergeInPlace(section, patch);
+      if (!isPlainObject(overrides.worlds)) overrides.worlds = {};
+      const worlds = overrides.worlds as Record<string, Record<string, unknown>>;
+      if (!isPlainObject(worlds[id])) worlds[id] = {};
+      mergeInPlace(worlds[id], patch);
       schedule();
     },
     flush() {
