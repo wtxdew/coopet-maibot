@@ -71,7 +71,9 @@
 - [ ] World 扩展第二步：通知交给麦麦（协议加 `notice`、插件更新，或借 MaiBot 的回复生成器转述，先查清接口）；
   扩展名字和图标跟着界面语言和扩展自带的图标
 - [x] 复用桌宠自带的装扮页和形象包导入（托盘「装扮…」打开 `/dress`）
-- [ ] 打包 macOS arm64、Windows x64
+- [x] 打包 macOS arm64（2026-11-13，v0.1.0：`corepack pnpm run pack`；临时签名；数据目录换成各系统惯例位置并从
+  `~/.config/coopet` 拷贝；内置 Coding Agent 通知扩展；`Coopet --ext` 装扩展；在本机用全新 HOME 和真实数据各验证一次）
+- [ ] 打包 Windows x64：脚本已按 Windows 写好（NSIS 按用户安装），要在 Windows 上运行 `pack` 并实测
 - [x] 断线重连、离线提示；没确认的消息不自动重发（阶段 1、2 的 link 与 Conductor 已实现；托盘显示连接状态）
 
 **完成标准**：在一台干净的机器上安装、填好地址就能用。
