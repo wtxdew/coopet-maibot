@@ -110,3 +110,15 @@ describe('openEventLog', () => {
     expect(errors).toHaveLength(1);
   });
 });
+
+describe('MemoryEventStore.subscribe', () => {
+  it('tells subscribers about each new event, and a failing one does not stop the store', () => {
+    const store = new MemoryEventStore();
+    const got: number[] = [];
+    store.subscribe(() => { throw new Error('boom'); });
+    store.subscribe((e) => got.push(e.cursor));
+    const e = store.append({ type: 't', source: 's', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text: 'x' });
+    expect(e.cursor).toBe(1);
+    expect(got).toEqual([1]);
+  });
+});

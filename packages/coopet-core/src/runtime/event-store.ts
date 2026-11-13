@@ -30,6 +30,7 @@ export class MemoryEventStore implements EventStore {
   private readonly events: EventEnvelope[];
   private readonly base: number;
   private readonly onAppend?: (e: EventEnvelope) => void;
+  private readonly listeners: Array<(e: EventEnvelope) => void> = [];
 
   /**
    * @param seed 已有的事件，游标必须从 seed[0].cursor 起连续递增
@@ -45,7 +46,15 @@ export class MemoryEventStore implements EventStore {
     const saved: EventEnvelope = { ...e, cursor: this.base + this.events.length };
     this.events.push(saved);
     this.onAppend?.(saved);
+    for (const cb of this.listeners) {
+      try { cb(saved); } catch { /* 观察者出错不影响存事件 */ }
+    }
     return saved;
+  }
+
+  /** 订阅新事件（设置窗的事件流实时追新用）；在 onAppend（写文件）之后调用。 */
+  subscribe(cb: (e: EventEnvelope) => void): void {
+    this.listeners.push(cb);
   }
 
   get(cursor: number): EventEnvelope | undefined {
