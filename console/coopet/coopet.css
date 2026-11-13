@@ -10,3 +10,10 @@
 
 /* 对话页：没有头像时的名字首字（features/chat/index.ts 的 Coopet 本地修改），样式同侧边栏的 */
 .chat-avatar-fallback { display: grid; width: 100%; height: 100%; place-items: center; font: 600 13px/1 var(--sans); color: var(--foreground); }
+
+/* 运行诊断的状态卡：几个小节排成栅格，窄窗口自动换行 */
+.coopet-diag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px 28px; }
+.coopet-diag-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.coopet-diag-section .kvtable td:first-child { white-space: nowrap; color: var(--muted-foreground); padding-right: 14px; }
+.coopet-diag .pill { vertical-align: 1px; }
+.coopet-diag + * { margin-top: 18px; }
