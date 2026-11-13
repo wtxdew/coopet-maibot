@@ -2,7 +2,7 @@
 import { getThemeStudio } from './base/theme/studio.ts';
 import { readThemeColor } from './base/theme/palette.ts';
 import { S as THEME } from './base/theme/strings.ts';
-import { mountRelease } from './features/release.ts';
+import { mountVersion } from './coopet/brand.ts'; // Coopet 本地修改：版本号不查 GitHub
 import { L } from './strings.ts';
 import { problemPopover } from './base/ui/problem.ts';
 import { S as SCHEMES } from './features/schemes/strings.ts';
@@ -47,7 +47,7 @@ export function createTitlebar(doc: Document, toggle: HTMLButtonElement, signal:
   const release = doc.createElement('div');
   release.className = 'companion-titlebar-release';
   actions.append(release);
-  mountRelease(doc, release, signal);
+  mountVersion(doc, release);
   const navigation = (win as Window & { navigation?: EventTarget & { canGoBack: boolean; canGoForward: boolean } }).navigation;
   const paintHistory = (): void => {
     // Browsers without the Navigation API leave history controls enabled.

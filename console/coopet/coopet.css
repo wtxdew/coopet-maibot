@@ -1,0 +1,6 @@
+/* Coopet 对 Coopanion 样式的补充（scripts/build-console.mjs 排在 companion.css 之后）。 */
+
+/* 侧边栏字标：Coopet 字标比 Coopanion 的窄（视图框宽 456 对 671.698），按同样的比例缩，笔画粗细和折叠动画不变 */
+.companion-lockup { width: 118.13px; }
+.companion-brand { width: 118.13px; }
+.is-collapsed .companion-lockup { width: 36px; }

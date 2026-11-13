@@ -19,6 +19,8 @@ Local changes to vendored code (each marked `Coopet 本地修改` in the source)
 - `console/features/home/index.ts`: no 使用向导 (the guide is the embedding app's; Coopet has none).
 - `console/features/chat/index.ts`: no 控制台 link (that page is not mounted).
 - `console/rail/index.ts`: no 「高级模式」 toggle (Coopet has no backend for the advanced pages), no pause key or run state (Cortico's model session pause), and the name is read-only (it is MaiBot's bot name).
+- `console/rail/brand.ts`: the Coopet wordmark (`console/coopet/brand.ts`, drawn in the Coopanion wordmark's strokes) in place of Coopanion's.
+- `console/titlebar.ts`: the version as plain text (`Coopet v…`), without the GitHub release check.
 - `console/advanced/features/worlds/index.ts`: no uninstall key without the extension surface (Coopet's World is built in).
 
-Coopet's own code next to vendored code: `console/coopet/` (the settings window entry, the connection card).
+Coopet's own code next to vendored code: `console/coopet/` (the settings window entry and page, the connection card, the wordmark, extra styles).

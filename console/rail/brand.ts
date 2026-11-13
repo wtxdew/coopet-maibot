@@ -1,4 +1,4 @@
-import { coopanionLettering } from '../branding.ts';
+import { coopetLettering } from '../coopet/brand.ts'; // Coopet 本地修改：Coopet 字标
 import { brandMark, christmasHat } from '../base/ui/icons.ts';
 
 /** The same C and two eyes form the wordmark and the compact mark; CSS moves their strokes. */
@@ -6,10 +6,10 @@ export function sidebarBrand(doc: Document, signal: AbortSignal): HTMLDivElement
   const lockup = doc.createElement('div');
   lockup.className = 'companion-lockup';
   lockup.setAttribute('role', 'img');
-  lockup.setAttribute('aria-label', 'Coopanion');
+  lockup.setAttribute('aria-label', 'Coopet');
 
   const mark = brandMark(doc, 'companion-brand');
-  const lettering = coopanionLettering(doc);
+  const lettering = coopetLettering(doc);
   mark.setAttribute('viewBox', lettering.getAttribute('viewBox')!);
   mark.children[0]!.classList.add('companion-brand-c');
   mark.children[1]!.classList.add('companion-brand-o-first');

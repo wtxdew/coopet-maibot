@@ -38,20 +38,21 @@ await esbuild.build({
   jsx: 'automatic',
   alias: { cortico: join(ROOT, 'vendor', 'cortico', 'src') },
   define: {
-    // Coopanion 标题栏的版本检查用；我们的渠道固定写 github（它不会自己去检查更新，见第二期）
+    // app-version.ts 要这两个值；Coopet 的标题栏只显示版本号，不检查更新（console/coopet/brand.ts）
     COOPANION_VERSION: JSON.stringify(version),
     COOPANION_CHANNEL: '"github"',
     'process.env.NODE_ENV': '"production"',
   },
   logLevel: 'warning',
 });
-cpSync(join(WINDOW, 'index.html'), join(OUT, 'index.html'));
+// 页面用 Coopet 自己的 index.html（标题不同），其余与 Coopanion 的一样
+cpSync(join(WINDOW, 'coopet', 'index.html'), join(OUT, 'index.html'));
 
 // Tailwind 找类名时会跳过 git 忽略的目录（build/ 被忽略），所以来源要写明
 const slash = (path) => relative(OUT, path).split(sep).join('/');
 const entry = join(OUT, 'tailwind.entry.css');
 writeFileSync(entry, [
-  ...['styles.css', 'features/home/home.css', 'features/chat/chat.css', 'companion.css'].map((f) => `@import "${slash(join(WINDOW, f))}";`),
+  ...['styles.css', 'features/home/home.css', 'features/chat/chat.css', 'companion.css', 'coopet/coopet.css'].map((f) => `@import "${slash(join(WINDOW, f))}";`),
   `@source "${slash(WINDOW)}";`,
   `@source "${slash(join(PET, 'src', 'webui'))}";`,
   '',
