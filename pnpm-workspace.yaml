@@ -5,6 +5,8 @@ allowBuilds:
   electron: true
   esbuild: true
   koffi: true
+  # Tailwind CLI 的文件监听，只有 --watch 才用；我们不用，不跑它的安装脚本
+  '@parcel/watcher': false
 
 minimumReleaseAgeExclude:
   - electron@44.4.4
