@@ -14,8 +14,9 @@ Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 
 - **可以扩展**：加载 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 格式的 **World 扩展**，给桌宠接上新的本地能力。
   World 扩展就是一个 npm 包，按 Cortico 的契约声明工具、事件和设置面板，Coopet 负责加载、托管、在设置窗里显示面板，
   并把扩展推出的事件交给桌宠说出来。内置 [Coding Agent 通知](https://github.com/ThermalEng/coopanion-agent-notify-world)
-  （ThermalEng）：Claude Code、Codex 等跑完一轮任务后，桌宠告诉你。也可以自己写，见下面的「World 扩展」。
-- **以后**：本地 Agent（对麦麦说"帮我打开某某"，由电脑上的 Agent 执行）、外部通知、电脑操作等。
+  （ThermalEng）：Claude Code、Codex 等跑完一轮任务后，桌宠告诉你；还内置 [ntfy 通知](https://github.com/wtxdew/cortico-world-ntfy)：
+  脚本、GitHub Actions、另一台电脑上的 Agent 用一行 `curl` 发通知，桌宠告诉你。也可以自己写，见下面的「World 扩展」。
+- **以后**：本地 Agent（对麦麦说"帮我打开某某"，由电脑上的 Agent 执行）、电脑操作等。
 
 ```
 ┌──────────────── 你的电脑 ────────────────┐                ┌──────── MaiBot 所在主机 ────────┐
@@ -69,6 +70,13 @@ Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 
 内置的 Coding Agent 通知默认启用：在设置窗「World 扩展 → Agent 通知」里给 Claude Code 等点「安装 hook」，
 它会往那个 Agent 的配置里加一条完成时的 hook（不会改其他设置）。
 
+内置的 ntfy 通知也默认启用，没加话题时不联网：在「World 扩展 → ntfy 通知」里起个片段名、点「添加话题」，
+再用「复制 curl」拿到发通知的命令，例如 `curl -d "构建完成" ntfy.sh/build_k3f9x2q8m1zawd7p`。
+话题名就是密码，知道它的人都能往里发；不要发敏感内容。离线时收到的通知只记在面板里，不念出来。
+
+每个扩展的「配置」里有「Coopet 怎么处理它的通知」：处理方式（桌宠 / 麦麦 / 规则 / 关闭）、认不得的通知、最多念多少字。
+「规则」按扩展自己的分类走，例如 ntfy 每个话题设的去向。「交给麦麦」还不能用，先由桌宠说。
+
 装别的 Cortico World 扩展（装完重启 Coopet，再在「World 扩展」里启用）：
 
 ```bash
@@ -118,3 +126,5 @@ Coopet 以 AGPL-3.0-or-later 发布（见 [LICENSE](LICENSE)）。它使用了�
 - [Cortico](https://github.com/Pal-AI-Lab/Cortico)（Pal-AI-Lab，MIT）：World 契约、扩展加载、WebUI 服务；
 - [coopanion-agent-notify-world](https://github.com/ThermalEng/coopanion-agent-notify-world)（ThermalEng，AGPL-3.0-or-later）：
   内置的 Coding Agent 通知扩展，作为 npm 依赖原样使用。
+
+内置的 [cortico-world-ntfy](https://github.com/wtxdew/cortico-world-ntfy)（AGPL-3.0-or-later）是为 Coopet 写的，单独的仓库，作为 npm 依赖使用。

@@ -79,9 +79,12 @@
 - [x] 插件拆成单独的仓库 [wtxdew/maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（2026-11-13，
   `git subtree split` 保留历史；协议文档一起移过去；发布 v0.1.0）
 - [ ] 插件上 MaiBot 官方插件市场（Mai-with-u/plugin-repo：开「Add Plugin」Issue，等校验和审核）
-- [ ] 外部通知：ntfy World 扩展（单独的仓库）。Coopet 用 SSE 订阅 ntfy 话题（ntfy.sh 或自己架在 NAS 上），一条空闲长连接，
-  不轮询；任何能 `curl` 的东西都能发（脚本、GitHub Actions、Home Assistant、另一台电脑上的 Claude Code hook）。
-  话题名当密码用；断线后按消息 ID 补拉。先讨论设计
+- [x] 外部通知：ntfy World 扩展（2026-11-14，[wtxdew/cortico-world-ntfy](https://github.com/wtxdew/cortico-world-ntfy)，npm 0.1.0，
+  内置、默认启用）：一条长连接订阅所有话题，不轮询；断线按消息 id 补拉，离线时收到的只记录不念；话题是「片段_随机码」，
+  每个话题有去向。经 ntfy.sh 实测：curl → 桌宠说出来
+- [x] 通知路由改成每个扩展三项（处理方式：桌宠 / 麦麦 / 规则 / 关闭；认不得的通知；最多念多少字），通知排队、同一来源合并（2026-11-14）
+- [ ] 自动更新（2026-11-14 代码完成，照 Coopanion 的 updater）：Windows 后台下载、静默安装；macOS 标题栏提示新版本。
+  实测待做：要有两个正式 Release（0.1.2 手动装上后，等下一个版本）
 
 **完成标准**：在一台干净的机器上安装、填好地址就能用。
 
