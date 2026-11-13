@@ -12,7 +12,9 @@
  * 回复、思考信号对不上具体是哪条消息引起的，统一按最近一次输入计时；
  * 距最近一次输入超过 TURN_WINDOW_MS 的回复记成 `[主动]`。
  *
- * 扩展 World 的通知按路由（routing.ts）决定说不说、说什么。送给麦麦的现在先由桌宠说（World 扩展第二步再接上）。
+ * 扩展 World 的通知按路由（routing.ts）决定说不说、说什么。要说的排队：两条气泡之间至少隔 NOTICE_GAP_MS；
+ * 还在排队时同一来源（同一扩展的同一分类：meta.topic、meta.agent，没有就是事件类型）又来了，合成一条：
+ * 说最新的那条，后面注明还有几条。送给麦麦的现在先由桌宠说（World 扩展第二步再接上）。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -38,6 +40,8 @@ export interface ConductorOptions {
   now?: () => number;
   /** 扩展 World 的路由设置（cfg.routes），没写的按 ROUTE_DEFAULTS */
   routeOf?: (worldId: string) => RouteSettings;
+  /** 两条通知气泡之间至少隔多久，默认 NOTICE_GAP_MS（测试时调小） */
+  noticeGapMs?: number;
   /** 界面语言（渲染通知用） */
   language?: () => Language;
 }
@@ -46,6 +50,8 @@ export interface ConductorOptions {
 const TURN_WINDOW_MS = 120_000;
 /** 日志里消息原文最多记多少字 */
 const PREVIEW_CHARS = 30;
+/** 两条通知气泡之间至少隔多久 */
+const NOTICE_GAP_MS = 4000;
 
 /** 使用者说话的事件：打字、语音；原文在 meta.text（event.text 带了给模型看的时间戳前缀）。 */
 const USER_SAID = new Set(['desktop-pet.message', 'desktop-pet.speech']);
@@ -62,6 +68,10 @@ export class Conductor {
   /** 最近一次输入：时间线以它为起点 */
   private last: { cursor: number; at: number } | null = null;
   private readonly turnStats: TurnStats;
+  /** 排队等着说的通知；more 是合进来的条数 */
+  private notices: Array<{ key: string; text: string; more: number }> = [];
+  private noticeTimer: NodeJS.Timeout | null = null;
+  private lastNoticeAt = -Infinity;
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
@@ -102,7 +112,9 @@ export class Conductor {
     }
     const fallback = decision.to === 'maibot' ? '（交给麦麦还不能用，先由桌宠说）' : '';
     this.opts.log.info(`[通知 · ${worldId}] #${event.cursor} ${event.type} → 桌宠说${fallback}：${preview(decision.say)}`);
-    void this.say(decision.say);
+    const meta = (event.meta ?? {}) as { topic?: unknown; agent?: unknown };
+    const kind = typeof meta.topic === 'string' ? meta.topic : typeof meta.agent === 'string' ? meta.agent : event.type;
+    this.queueNotice(`${worldId}:${kind}`, decision.say);
   }
 
   /** 对话统计：本次运行几轮、最近一轮的时间线、最近的回复延迟 */
@@ -113,6 +125,32 @@ export class Conductor {
   /** 退出前调用，清掉计时。 */
   stop(): void {
     this.clearTimer();
+    if (this.noticeTimer) clearTimeout(this.noticeTimer);
+    this.noticeTimer = null;
+    this.notices = [];
+  }
+
+  /** 排队；同一来源还在排队就合进去 */
+  private queueNotice(key: string, text: string): void {
+    const waiting = this.notices.find((n) => n.key === key);
+    if (waiting) { waiting.text = text; waiting.more += 1; } else this.notices.push({ key, text, more: 0 });
+    this.pumpNotices();
+  }
+
+  private pumpNotices(): void {
+    if (this.noticeTimer || this.notices.length === 0) return;
+    const gap = this.opts.noticeGapMs ?? NOTICE_GAP_MS;
+    const wait = Math.max(0, this.lastNoticeAt + gap - this.now());
+    this.noticeTimer = setTimeout(() => {
+      this.noticeTimer = null;
+      const next = this.notices.shift();
+      if (!next) return;
+      this.lastNoticeAt = this.now();
+      const zh = (this.opts.language?.() ?? 'zh').startsWith('zh');
+      const more = next.more ? (zh ? `（还有 ${next.more} 条）` : ` (+${next.more} more)`) : '';
+      void this.say(next.text + more);
+      this.pumpNotices();
+    }, wait);
   }
 
   private async userSaid(event: EventEnvelope): Promise<void> {

@@ -11,7 +11,7 @@ type Call =
   | { k: 'turnEnded' }
   | { k: 'settled'; cursors: number[]; outcome: string };
 
-function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean } = {}) {
+function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean; noticeGapMs?: number } = {}) {
   const calls: Call[] = [];
   const sent: OutgoingChat[] = [];
   let onMessage: (m: IncomingMessage) => void = () => {};
@@ -33,7 +33,7 @@ function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => stri
   };
   const conductor = new Conductor({
     pet, link, log: consoleLogger('test', 'error'), botName: () => '麦麦',
-    thinkingTimeoutMs: 1000, ...(opts.decorate ? { decorate: opts.decorate } : {}),
+    thinkingTimeoutMs: 1000, noticeGapMs: opts.noticeGapMs ?? 0, ...(opts.decorate ? { decorate: opts.decorate } : {}),
   });
   return {
     conductor, calls, sent,
@@ -190,6 +190,32 @@ describe('extension world events', () => {
     expect(t.calls).toEqual([{ k: 'say', script: 'Claude Code 完成了 · coopet：全部完成。' }]);
     expect(t.sent).toEqual([]);
     expect(t.conductor.stats().turns).toBe(0);
+  });
+});
+
+describe('notice pacing', () => {
+  const notice = (cursor: number, text: string, meta: Record<string, unknown>) => ({ event: { cursor, type: 'ntfy.message', source: 'ntfy', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text, meta } as EventEnvelope });
+
+  it('spaces notices apart and merges ones from the same source still waiting', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup('open', { noticeGapMs: 1000 });
+      const routes = { ntfy: { mode: 'pet' as const, unknown: 'pet' as const, maxChars: 80 } };
+      (t.conductor as unknown as { opts: { routeOf: (id: string) => unknown } }).opts.routeOf = (id) => routes[id as 'ntfy'];
+      t.conductor.worldEvent('ntfy', notice(1, '构建完成', { topic: 'build' }));
+      t.conductor.worldEvent('ntfy', notice(2, '测试一', { topic: 'test' }));
+      t.conductor.worldEvent('ntfy', notice(3, '测试二', { topic: 'test' }));
+      t.conductor.worldEvent('ntfy', notice(4, '测试三', { topic: 'test' }));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(t.calls).toEqual([{ k: 'say', script: '构建完成' }]);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(t.calls).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(t.calls[1]).toEqual({ k: 'say', script: '测试三（还有 2 条）' });
+      t.conductor.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
