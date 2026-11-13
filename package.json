@@ -17,6 +17,7 @@
     "build:console": "node scripts/build-console.mjs",
     "typecheck:console": "tsc -p tsconfig.console.json",
     "app": "corepack pnpm run build:pet && corepack pnpm run build:console && electron packages/coopet-app",
+    "ext": "node scripts/ext.mjs",
     "test:core": "cd packages/coopet-core && vitest run",
     "typecheck:core": "cd packages/coopet-core && tsc --noEmit",
     "test:app": "cd packages/coopet-app && vitest run",
