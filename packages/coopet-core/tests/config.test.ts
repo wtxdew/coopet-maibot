@@ -33,7 +33,7 @@ describe('loadConfig', () => {
     const { cfg } = loadConfig(dirs);
     expect(cfg.pet.port).toBe(DESKTOP_PET_DEFAULTS.port);
     expect(cfg.pet.asr.enabled).toBe(false);
-    expect(cfg.link.kind).toBe('maim');
+    expect(cfg.link.kind).toBe('plugin');
     expect(cfg.link.maim).toEqual({ url: '', tokenFile: join(root, 'token'), botAccount: 'coopet-maibot', userId: 'owner', userNickname: '主人' });
     expect(cfg.link.plugin).toEqual({ url: '', tokenFile: join(root, 'plugin-token') });
     expect(cfg.botName).toBe('MaiBot');
@@ -74,7 +74,7 @@ describe('loadConfig', () => {
     expect(cfg.link.kind).toBe('maim');
     persistPet({ theme: 'light' });
     flush();
-    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).link).toEqual({ maim: { url: 'ws://old/ws', userNickname: '老板' } });
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).link).toEqual({ maim: { url: 'ws://old/ws', userNickname: '老板' }, kind: 'maim' });
   });
 
   it('reads log settings and rejects bad ones', () => {

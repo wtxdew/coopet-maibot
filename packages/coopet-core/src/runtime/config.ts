@@ -138,11 +138,11 @@ export function coopetDirs(root = defaultDataRoot()): CoopetDirs {
 
 /**
  * 默认值里不放任何个人信息：MaiBot 的地址、名字、你的昵称都写在本地的 config.json 里。
- * 两种连接的 url 都没有默认值，必须在配置里填。插件部署好之前默认用 maim。
+ * 两种连接的 url 都没有默认值，必须在配置里填。默认用插件（maim_message 是旧版备选）。
  */
 export function defaultLinkConfig(dirs: CoopetDirs): LinkConfig {
   return {
-    kind: 'maim',
+    kind: 'plugin',
     plugin: { url: '', tokenFile: join(dirs.root, 'plugin-token') },
     maim: {
       url: '',
@@ -157,7 +157,7 @@ export function defaultLinkConfig(dirs: CoopetDirs): LinkConfig {
 /** 旧格式里直接写在 link 下的 maim 字段（阶段 1）。 */
 const LEGACY_MAIM_KEYS = ['url', 'tokenFile', 'botAccount', 'userId', 'userNickname'] as const;
 
-/** 把旧格式 `link.{url,…}` 挪进 `link.maim`；在原对象上修改。 */
+/** 把旧格式 `link.{url,…}` 挪进 `link.maim`，并写明 kind 为 maim；在原对象上修改。 */
 export function migrateLinkSection(link: Record<string, unknown>): void {
   const moved: Record<string, unknown> = {};
   for (const key of LEGACY_MAIM_KEYS) {
@@ -169,6 +169,8 @@ export function migrateLinkSection(link: Record<string, unknown>): void {
   if (Object.keys(moved).length === 0) return;
   const maim = isPlainObject(link.maim) ? link.maim : {};
   link.maim = { ...moved, ...maim };
+  // 旧格式只有 maim_message 一种连接；默认改成插件之后，它要明确写上 maim，才不会换成没填地址的插件
+  if (!('kind' in link)) link.kind = 'maim';
 }
 
 /** 本机的设备 id：首次调用时生成并保存在 `<root>/device-id`，之后一直用同一个。 */

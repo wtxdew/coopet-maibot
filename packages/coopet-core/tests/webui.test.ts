@@ -124,7 +124,7 @@ describe('webui surface', () => {
     const r = await t.get('/api/config');
     expect(JSON.stringify(r.body)).not.toContain('secret-token');
     const link = (r.body.groups as Array<{ group: { id: string }; values: Record<string, unknown> }>).find((g) => g.group.id === 'coopet.link')!;
-    expect(link.values).toMatchObject({ 'link.kind': 'maim', 'link.plugin.token': '', 'link.maim.userId': 'owner' });
+    expect(link.values).toMatchObject({ 'link.kind': 'plugin', 'link.plugin.token': '', 'link.maim.userId': 'owner' });
     expect((await t.get('/api/status')).body.link.tokenSet).toEqual({ plugin: true, maim: false });
   });
 
