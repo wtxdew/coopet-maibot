@@ -15,7 +15,8 @@
  * - worlds：`/api/worlds`，只有桌宠一个。
  * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
  *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
- *   去掉 promptDocs：那是给模型看的环境说明，MaiBot 不用，页面也就不显示「提示词」标签。
+ *   去掉 promptDocs：那是给模型看的环境说明，MaiBot 不用，页面也就不显示「提示词」标签；
+ *   去掉「语音输入」面板（语音识别还没接）。
  * - botDir：配色（theme.json）和头像（avatar.png）存放的目录，即 ~/.config/coopet。
  * - webDistDir：面板脚本所在目录（见 assets.ts）。
  */
@@ -37,6 +38,8 @@ import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from '.
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
 const PET_PREFIX = `worlds.${PET_WORLD_ID}.`;
+/** 不放进页面清单的桌宠面板：语音输入（语音识别还没接） */
+const HIDDEN_PANELS = new Set(['voice']);
 /** 不交给设置窗的组：语音识别（还没接）、电脑操作（阶段 5，有风险，默认关闭） */
 const HIDDEN_GROUP_SUFFIXES = [':asr', ':cua'];
 
@@ -120,6 +123,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       const world = { webUi: (lang?: Language) => d.pet.webUi(lang ?? language) } as unknown as World;
       const page = ioPageContribution(PET_WORLD_ID, info.label ?? PET_WORLD_ID, { ...info, prefixDrifted: false }, world, language);
       delete page.promptDocs;
+      if (page.panels) page.panels = page.panels.filter((panel) => !HIDDEN_PANELS.has(panel.id));
       return page;
     },
   };
