@@ -38,7 +38,7 @@ await esbuild.build({
   jsx: 'automatic',
   alias: { cortico: join(ROOT, 'vendor', 'cortico', 'src') },
   define: {
-    // app-version.ts 要这两个值；Coopet 的标题栏只显示版本号，不检查更新（console/coopet/brand.ts）
+    // app-version.ts 要这两个值；标题栏的版本号和更新状态见 console/coopet/release.ts
     COOPANION_VERSION: JSON.stringify(version),
     COOPANION_CHANNEL: '"github"',
     'process.env.NODE_ENV': '"production"',

@@ -1,13 +1,11 @@
 /**
- * Coopet 的字标和标题栏版本号。
+ * Coopet 的字标（标题栏的版本号和更新状态在 release.ts）。
  *
  * 字标照 Coopanion 的 "Coopanion" 字标（console/branding.ts）画：同样是线宽 16、圆头的笔画，
  * 同样的坐标系（x 高 86–134，圆半径 24，字距 31）。前三笔 C、o、o 和 p 照抄原字标，e 和 t 是新画的。
  * 子元素顺序和原字标一致（C、o、o、其余），rail/brand.ts 靠这个顺序做侧边栏折叠时的动画。
  * 宽度比原字标窄，侧边栏里的尺寸在 coopet.css 里按同样的比例改。
  */
-
-import { APP_VERSION } from '../app-version.ts';
 
 const P_STEM = 260.698484809835;
 const E_CX = 363.698484809835;
@@ -42,10 +40,3 @@ export function coopetLettering(doc: Document): SVGSVGElement {
   return svg;
 }
 
-/** 标题栏的版本号（替代 Coopanion 的版本链接和更新检查；Coopet 打包时再做更新） */
-export function mountVersion(doc: Document, container: Element): void {
-  const el = doc.createElement('span');
-  el.className = 'companion-version';
-  el.textContent = `Coopet v${APP_VERSION}`;
-  container.appendChild(el);
-}
