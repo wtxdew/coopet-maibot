@@ -1,0 +1,147 @@
+/**
+ * 设置窗的后端：把 Coopet 的状态、桌宠配置、页面交给 Cortico 的 WebApp（vendor/cortico/src/web/server.ts），
+ * 由它按 Cortico WebUI 的格式提供接口。设置窗是 Coopanion 的前端（console/），本来就讲这套接口。
+ *
+ * 这里给的（其余 WebApp 功能不给，相应接口回 503 加说明）：
+ * - getStatus：`/api/status`。页面读 displayName（侧边栏的名字）、loop.paused（侧边栏的运行键）；
+ *   另加 Coopet 自己的 link（MaiBot 连接）和 pet（桌宠是否在桌面上），第二期的连接卡用。
+ * - config：`/api/config`。桌宠的配置说明书（desktopPetConfigGroups），只去掉语音识别和电脑操作两组；
+ *   哪些项显示由页面自己决定（Coopanion 的「习惯」页只发它显示的键）。写入前 WebApp 已用 coerceGroupValues
+ *   检查过类型和范围，这里写回 config.json 后 refresh，标了 x-hot 的项马上生效。
+ * - worlds：`/api/worlds`，只有桌宠一个。
+ * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
+ *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
+ *   去掉 promptDocs：那是给模型看的环境说明，MaiBot 不用，页面也就不显示「提示词」标签。
+ * - botDir：配色（theme.json）和头像（avatar.png）存放的目录，即 ~/.config/coopet。
+ * - webDistDir：面板脚本所在目录（见 assets.ts）。
+ */
+
+import { join } from 'node:path';
+import type { ConfigGroup, ConfigValues } from 'cortico/core/config-schema.ts';
+import type { Language } from 'cortico/core/language.ts';
+import type { EventStoreReader, Logger, World } from 'cortico/core/types.ts';
+import type { DeepPartial } from 'cortico/world.ts';
+import type { WebAppDeps, WebUiWorldInfo } from 'cortico/web/server.ts';
+import type { WebUiPageSource } from 'cortico/web/webui-pages.ts';
+import { ioPageContribution } from 'cortico/bot.ts';
+import { desktopPetConfigGroups, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
+import type { CoopetDirs } from '../runtime/config.ts';
+import type { PetHandle } from '../runtime/pet.ts';
+import type { LinkState } from '../link/types.ts';
+
+export const PET_WORLD_ID = 'desktop-pet';
+/** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
+const PET_PREFIX = `worlds.${PET_WORLD_ID}.`;
+/** 不交给设置窗的组：语音识别（还没接）、电脑操作（阶段 5，有风险，默认关闭） */
+const HIDDEN_GROUP_SUFFIXES = [':asr', ':cua'];
+
+export interface SurfaceDeps {
+  /** 活的桌宠配置对象（cfg.pet） */
+  petCfg: DesktopPetConfigSection;
+  persistPet(patch: DeepPartial<DesktopPetConfigSection>): void;
+  pet: Pick<PetHandle, 'webUi' | 'toolNames' | 'refresh' | 'onDesktop'>;
+  store: EventStoreReader;
+  dirs: CoopetDirs;
+  log: Logger;
+  botName(): string;
+  link(): { kind: string; state: LinkState };
+  /** 面板脚本目录（assets.ts 准备的） */
+  webDistDir: string;
+}
+
+/** 交给设置窗的桌宠配置组 */
+export function petConfigGroups(language: Language): ConfigGroup[] {
+  return desktopPetConfigGroups(language).filter((g) => !HIDDEN_GROUP_SUFFIXES.some((s) => g.id.endsWith(s)));
+}
+
+export function createSurface(d: SurfaceDeps): WebAppDeps {
+  const groupValues = (group: ConfigGroup): ConfigValues => {
+    const values: ConfigValues = {};
+    for (const key of Object.keys(group.schema.properties)) {
+      if (key.startsWith(PET_PREFIX)) values[key] = getPath(d.petCfg, key.slice(PET_PREFIX.length)) as ConfigValues[string];
+    }
+    return values;
+  };
+
+  const worldInfo = (language: Language): WebUiWorldInfo => {
+    const decl = d.pet.webUi(language);
+    return {
+      id: PET_WORLD_ID,
+      status: 'active',
+      label: decl.label ?? '桌宠',
+      declared: true,
+      visible: true,
+      envPrompt: '',
+      workspace: `worlds/${PET_WORLD_ID}`,
+      tools: d.pet.toolNames(),
+      ...(decl.lamps?.length ? { lamps: decl.lamps } : {}),
+      ...(decl.badges ? { badges: decl.badges } : {}),
+      ...(decl.links ? { links: decl.links } : {}),
+    };
+  };
+
+  const petPage: WebUiPageSource = {
+    id: `world:${PET_WORLD_ID}`,
+    contribute(language) {
+      const info = worldInfo(language);
+      if (info.status !== 'active') return null;
+      // ioPageContribution 只用到 World 的 webUi()
+      const world = { webUi: (lang?: Language) => d.pet.webUi(lang ?? language) } as unknown as World;
+      const page = ioPageContribution(PET_WORLD_ID, info.label ?? PET_WORLD_ID, { ...info, prefixDrifted: false }, world, language);
+      delete page.promptDocs;
+      return page;
+    },
+  };
+
+  return {
+    store: d.store,
+    dataDir: d.dirs.data,
+    memoryDir: join(d.dirs.data, 'workspace'),
+    botDir: d.dirs.root,
+    language: 'zh',
+    webDistDir: d.webDistDir,
+    log: d.log,
+    getStatus: () => ({
+      displayName: d.botName(),
+      loop: { paused: false },
+      link: d.link(),
+      pet: { onDesktop: d.pet.onDesktop() },
+    }),
+    config: {
+      groups: (language) => petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
+      set: (groupId, values, language) => {
+        const group = petConfigGroups(language).find((g) => g.id === groupId);
+        if (!group) throw new Error(`没有这个配置组：${groupId}`);
+        const patch: Record<string, unknown> = {};
+        let hot = true;
+        for (const [key, value] of Object.entries(values)) {
+          if (!key.startsWith(PET_PREFIX)) throw new Error(`不是桌宠的设置：${key}`);
+          setPath(patch, key.slice(PET_PREFIX.length), value);
+          if (group.schema.properties[key]?.['x-hot'] !== true) hot = false;
+        }
+        if (Object.keys(patch).length === 0) return '没有改动';
+        d.persistPet(patch as DeepPartial<DesktopPetConfigSection>);
+        d.pet.refresh();
+        d.log.info(`设置窗改了桌宠设置：${Object.keys(values).join('、')}`);
+        return hot ? '已保存' : '已保存，部分设置要重启 Coopet 后生效';
+      },
+      options: () => [],
+    },
+    worlds: (language) => [worldInfo(language)],
+    webUiPageSources: () => [petPage],
+  };
+}
+
+function getPath(obj: unknown, path: string): unknown {
+  return path.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), obj);
+}
+
+function setPath(obj: Record<string, unknown>, path: string, value: unknown): void {
+  const keys = path.split('.');
+  let o = obj;
+  for (const k of keys.slice(0, -1)) {
+    if (typeof o[k] !== 'object' || o[k] === null) o[k] = {};
+    o = o[k] as Record<string, unknown>;
+  }
+  o[keys[keys.length - 1]] = value;
+}
