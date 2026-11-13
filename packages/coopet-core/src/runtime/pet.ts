@@ -27,6 +27,8 @@ export interface PetHostOptions {
   log: Logger;
   /** 桌宠推出的、需要处理的事件（打字、语音、戳摸…） */
   onEvent: (e: HostedEvent) => void;
+  /** 界面语言（桌宠菜单、提示、页面）；每次用到时读，改了之后 refresh */
+  language: () => Language;
   /** 菜单、对话页上显示的名字；每次用到时读 */
   botName: () => string;
   /** 借给桌宠菜单的控制项（例如退出整个应用）；没有时菜单里不显示对应按钮 */
@@ -79,7 +81,8 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     botName: opts.botName,
     packRoots: () => [dirs.figures],
     packDir: () => dirs.figures,
-    language: () => 'zh',
+    language: opts.language,
+    // 给模型看的环境说明用的语言；MaiBot 不读它，固定中文
     modelLanguage: () => 'zh',
     ...(opts.controls ? { controls: opts.controls } : {}),
     ...(opts.onDesktopChange ? { onDesktopChange: opts.onDesktopChange } : {}),

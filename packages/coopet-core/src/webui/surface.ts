@@ -8,6 +8,8 @@
  * - config：`/api/config`。桌宠的配置说明书（desktopPetConfigGroups），只去掉语音识别和电脑操作两组；
  *   哪些项显示由页面自己决定（Coopanion 的「习惯」页只发它显示的键）。写入前 WebApp 已用 coerceGroupValues
  *   检查过类型和范围，这里写回 config.json 后 refresh，标了 x-hot 的项马上生效。
+ * - config 里另有 `companion` 组，只有 `language`（界面语言）：组名和键是 Coopanion「习惯」页写死的；
+ *   选项来自 `/api/config/options/coopanion.language`（Cortico 的语言名表）。改了之后桌宠刷新，并经 onLanguage 告诉外壳。
  * - worlds：`/api/worlds`，只有桌宠一个。
  * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
  *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
@@ -18,14 +20,14 @@
 
 import { join } from 'node:path';
 import type { ConfigGroup, ConfigValues } from 'cortico/core/config-schema.ts';
-import type { Language } from 'cortico/core/language.ts';
+import { baseLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from 'cortico/core/language.ts';
 import type { EventStoreReader, Logger, World } from 'cortico/core/types.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { WebAppDeps, WebUiWorldInfo } from 'cortico/web/server.ts';
 import type { WebUiPageSource } from 'cortico/web/webui-pages.ts';
 import { ioPageContribution } from 'cortico/bot.ts';
 import { desktopPetConfigGroups, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
-import type { CoopetDirs } from '../runtime/config.ts';
+import type { AppPatch, CoopetConfig, CoopetDirs } from '../runtime/config.ts';
 import type { PetHandle } from '../runtime/pet.ts';
 import type { LinkState } from '../link/types.ts';
 
@@ -36,9 +38,12 @@ const PET_PREFIX = `worlds.${PET_WORLD_ID}.`;
 const HIDDEN_GROUP_SUFFIXES = [':asr', ':cua'];
 
 export interface SurfaceDeps {
-  /** 活的桌宠配置对象（cfg.pet） */
-  petCfg: DesktopPetConfigSection;
+  /** 活的配置对象 */
+  cfg: CoopetConfig;
+  persist(patch: AppPatch): void;
   persistPet(patch: DeepPartial<DesktopPetConfigSection>): void;
+  /** 界面语言改了（已保存、桌宠已刷新）：告诉外壳 */
+  onLanguage?(language: Language): void;
   pet: Pick<PetHandle, 'webUi' | 'toolNames' | 'refresh' | 'onDesktop'>;
   store: EventStoreReader;
   dirs: CoopetDirs;
@@ -47,6 +52,26 @@ export interface SurfaceDeps {
   link(): { kind: string; state: LinkState };
   /** 面板脚本目录（assets.ts 准备的） */
   webDistDir: string;
+}
+
+/** Coopanion「习惯」页读写界面语言的组和键、选项来源 */
+export const LANGUAGE_GROUP = 'companion';
+const LANGUAGE_KEY = 'language';
+const LANGUAGE_OPTIONS = 'coopanion.language';
+
+function languageGroup(language: Language): ConfigGroup {
+  const zh = baseLanguage(language) === 'zh';
+  return {
+    id: LANGUAGE_GROUP,
+    owner: 'core',
+    schema: {
+      type: 'object',
+      title: zh ? '通用' : 'General',
+      properties: {
+        [LANGUAGE_KEY]: { type: 'string', title: zh ? '语言' : 'Language', enum: [...LANGUAGES], 'x-options': LANGUAGE_OPTIONS, 'x-hot': true },
+      },
+    },
+  };
 }
 
 /** 交给设置窗的桌宠配置组 */
@@ -58,7 +83,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
   const groupValues = (group: ConfigGroup): ConfigValues => {
     const values: ConfigValues = {};
     for (const key of Object.keys(group.schema.properties)) {
-      if (key.startsWith(PET_PREFIX)) values[key] = getPath(d.petCfg, key.slice(PET_PREFIX.length)) as ConfigValues[string];
+      if (key.startsWith(PET_PREFIX)) values[key] = getPath(d.cfg.pet, key.slice(PET_PREFIX.length)) as ConfigValues[string];
     }
     return values;
   };
@@ -108,8 +133,20 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       pet: { onDesktop: d.pet.onDesktop() },
     }),
     config: {
-      groups: (language) => petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
+      groups: (language) => [
+        { group: languageGroup(language), values: { [LANGUAGE_KEY]: d.cfg.language } },
+        ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
+      ],
       set: (groupId, values, language) => {
+        if (groupId === LANGUAGE_GROUP) {
+          const next = values[LANGUAGE_KEY] as Language | undefined;
+          if (!next || next === d.cfg.language) return '没有改动';
+          d.persist({ language: next });
+          d.pet.refresh();
+          d.log.info(`界面语言改成 ${next}`);
+          d.onLanguage?.(next);
+          return baseLanguage(next) === 'zh' ? '已保存' : 'Saved';
+        }
         const group = petConfigGroups(language).find((g) => g.id === groupId);
         if (!group) throw new Error(`没有这个配置组：${groupId}`);
         const patch: Record<string, unknown> = {};
@@ -125,7 +162,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
         d.log.info(`设置窗改了桌宠设置：${Object.keys(values).join('、')}`);
         return hot ? '已保存' : '已保存，部分设置要重启 Coopet 后生效';
       },
-      options: () => [],
+      options: (kind) => (kind === LANGUAGE_OPTIONS ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] })) : []),
     },
     worlds: (language) => [worldInfo(language)],
     webUiPageSources: () => [petPage],

@@ -2,14 +2,15 @@
  * 被外壳（coopet-app）启动时，和外壳主进程之间的消息通道（Node IPC：process.send / 'message'）。
  * 直接 `corepack pnpm dev` 运行时没有 IPC，connectSupervisor 返回 null，其余代码照常工作。
  *
- * 核心 → 外壳：ready（桌宠页面地址、设置窗后端的端口）、link（连接状态）、pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、
+ * 核心 → 外壳：ready（桌宠页面地址、设置窗后端的端口、界面语言）、language（界面语言改了）、link（连接状态）、pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、
  *              open-settings（桌宠菜单里点了设置）、response（对请求的回复）、chat-data / chat-closed（对话流）
  * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、shutdown、
  *              request（配置窗的请求，带 id）、chat-open / chat-message / chat-close（对话流，带 streamId）
  */
 
 export type ToShell =
-  | { type: 'ready'; petOrigin: string; webPort: number }
+  | { type: 'ready'; petOrigin: string; webPort: number; language: string }
+  | { type: 'language'; language: string }
   | { type: 'link'; kind: string; state: string; reason?: string; botName?: string }
   | { type: 'pet'; onDesktop: boolean }
   | { type: 'quit' }

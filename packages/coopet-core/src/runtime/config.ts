@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { Logger, LogLevel } from 'cortico/core/types.ts';
+import { isLanguage, systemLanguage, type Language } from 'cortico/core/language.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
 
 /** 经 coopet-adapter 插件连接（协议 v0，docs/PROTOCOL.md）。身份和 Bot 名字由插件下发。 */
@@ -55,6 +56,8 @@ export interface LogConfig {
 }
 
 export interface CoopetConfig {
+  /** 界面语言：设置窗、桌宠、托盘。没设置过时跟系统语言；MaiBot 用什么语言回复不受它影响 */
+  language: Language;
   /** 桌宠菜单、提示里显示的麦麦的名字（连上插件后以 MaiBot 设置里的为准） */
   botName: string;
   log: LogConfig;
@@ -150,6 +153,7 @@ export const COOPET_PET_DEFAULTS: DeepPartial<DesktopPetConfigSection> = {
 };
 
 interface FileShape {
+  language?: string;
   botName?: string;
   link?: Record<string, unknown>;
   pet?: DeepPartial<DesktopPetConfigSection>;
@@ -159,6 +163,7 @@ interface FileShape {
 
 /** 桌宠以外、可以在配置窗里改的部分。 */
 export interface AppPatch {
+  language?: Language;
   botName?: string;
   log?: Partial<LogConfig>;
   link?: DeepPartial<LinkConfig>;
@@ -196,6 +201,7 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
   mergeInPlace(pet, COOPET_PET_DEFAULTS);
   mergeInPlace(pet, overrides.pet);
   const cfg: CoopetConfig = {
+    language: isLanguage(file.language) ? file.language : systemLanguage(),
     botName: typeof file.botName === 'string' && file.botName.trim() ? file.botName : 'MaiBot',
     log: logFrom(file.log),
     link: linkFrom(dirs, overrides.link!),
@@ -231,6 +237,9 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.botName !== undefined && (typeof patch.botName !== 'string' || !patch.botName.trim())) {
         throw new Error('botName 必须是非空字符串');
       }
+      if (patch.language !== undefined && !isLanguage(patch.language)) {
+        throw new Error(`language 不是支持的语言：${String(patch.language)}`);
+      }
       // 先在副本上合并、检查，不合格就不动原配置
       const nextLogRaw = structuredClone(isPlainObject(overrides.log) ? overrides.log : {});
       mergeInPlace(nextLogRaw, patch.log);
@@ -242,6 +251,10 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.botName !== undefined) {
         overrides.botName = patch.botName;
         cfg.botName = patch.botName;
+      }
+      if (patch.language !== undefined) {
+        overrides.language = patch.language;
+        cfg.language = patch.language;
       }
       if (patch.log) overrides.log = nextLogRaw;
       if (patch.link) overrides.link = nextLinkRaw;

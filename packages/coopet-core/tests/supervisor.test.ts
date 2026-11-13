@@ -18,13 +18,13 @@ describe('connectSupervisor', () => {
     const sup = connectSupervisor(proc)!;
     const got: FromShell[] = [];
     sup.onMessage((m) => got.push(m));
-    sup.send({ type: 'ready', petOrigin: 'http://127.0.0.1:7797', webPort: 50123 });
+    sup.send({ type: 'ready', petOrigin: 'http://127.0.0.1:7797', webPort: 50123, language: 'zh' });
     proc.emit('message', { type: 'show-pet' });
     proc.emit('message', { type: 'toggle-pet' });
     proc.emit('message', { type: 'format-disk' });
     proc.emit('message', null);
     proc.emit('message', { type: 'shutdown' });
-    expect(proc.sent).toEqual([{ type: 'ready', petOrigin: 'http://127.0.0.1:7797', webPort: 50123 }]);
+    expect(proc.sent).toEqual([{ type: 'ready', petOrigin: 'http://127.0.0.1:7797', webPort: 50123, language: 'zh' }]);
     expect(got).toEqual([{ type: 'show-pet' }, { type: 'toggle-pet' }, { type: 'shutdown' }]);
     proc.connected = false;
     sup.send({ type: 'quit' });

@@ -58,6 +58,7 @@ const pet = await startPet({
   store,
   log,
   botName,
+  language: () => cfg.language,
   onEvent: (e) => conductor?.handle(e),
   // 桌宠菜单里的"退出""设置"：交给外壳；直接 dev 运行时没有这两个按钮
   ...(shell ? {
@@ -131,13 +132,14 @@ if (shell) {
   shell.onDisconnect(() => void shutdown('外壳断开'));
   const webLog = log.child('webui');
   web = new WebApp(createSurface({
-    petCfg: cfg.pet, persistPet, pet, store, dirs, log: webLog, botName,
+    cfg, persist, persistPet, pet, store, dirs, log: webLog, botName,
+    onLanguage: (language) => shell.send({ type: 'language', language }),
     link: () => ({ kind: cfg.link.kind, state: link.state() }),
     webDistDir: prepareWebAssets(dirs.data, webLog),
   }));
   const webPort = await web.start(0);
   log.info(`设置窗后端：http://127.0.0.1:${webPort}/`);
-  shell.send({ type: 'ready', petOrigin: pet.origin, webPort });
+  shell.send({ type: 'ready', petOrigin: pet.origin, webPort, language: cfg.language });
 }
 
 function createLink(config: CoopetConfig, d: CoopetDirs, linkLog: Logger): Link {

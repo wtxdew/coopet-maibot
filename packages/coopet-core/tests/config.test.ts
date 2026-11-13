@@ -154,3 +154,26 @@ describe('loadConfig', () => {
     expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).pet).toEqual({ theme: 'light' });
   });
 });
+
+describe('language', () => {
+  it('follows the system until one is chosen, then keeps it', () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-lang-'));
+    const dirs = coopetDirs(root);
+    const loaded = loadConfig(dirs, { debounceMs: 0 });
+    // vitest 里系统语言固定为 zh（vitest.config.ts 的 CORTICO_LANGUAGE）
+    expect(loaded.cfg.language).toBe('zh');
+    loaded.persist({ language: 'ja' });
+    loaded.flush();
+    expect(loaded.cfg.language).toBe('ja');
+    expect(loadConfig(dirs).cfg.language).toBe('ja');
+    expect(() => loaded.persist({ language: 'klingon' as never })).toThrow(/language/);
+    expect(loaded.cfg.language).toBe('ja');
+  });
+
+  it('ignores an unknown language in the file', () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-lang-'));
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ language: 'xx' }));
+    expect(loadConfig(dirs).cfg.language).toBe('zh');
+  });
+});

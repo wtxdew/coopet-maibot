@@ -30,7 +30,7 @@ describe('startPet (no window)', () => {
     const store = new MemoryEventStore();
     const pet = await startPet({
       cfg: cfg.pet, persist: persistPet, dirs, store,
-      log: consoleLogger('test', 'warn'), onEvent: () => {}, botName: () => '麦麦',
+      log: consoleLogger('test', 'warn'), onEvent: () => {}, botName: () => '麦麦', language: () => 'zh',
     });
     try {
       // 没有页面连着：pet_say 如实返回失败

@@ -44,8 +44,9 @@ async function setup() {
   const log = consoleLogger('test', 'error');
   const webDistDir = prepareWebAssets(dirs.data, log, petDir);
 
+  const onLanguage = vi.fn();
   const app = new WebApp(createSurface({
-    petCfg: loaded.cfg.pet, persistPet, pet, store: new MemoryEventStore(), dirs, log,
+    cfg: loaded.cfg, persist: loaded.persist, persistPet, onLanguage, pet, store: new MemoryEventStore(), dirs, log,
     botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'open' }), webDistDir,
   }));
   apps.push(app);
@@ -56,7 +57,7 @@ async function setup() {
     const r = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
     return { status: r.status, body: await r.json() as any };
   };
-  return { root, dirs, loaded, persistPet, pet, invoke, streams, base, port, get, post };
+  return { root, dirs, loaded, persistPet, onLanguage, pet, invoke, streams, base, port, get, post };
 }
 
 describe('webui surface', () => {
@@ -77,6 +78,22 @@ describe('webui surface', () => {
     expect(ids.some((id) => id.endsWith(':cua') || id.endsWith(':asr'))).toBe(false);
     expect(groups.find((g) => g.group.id === 'world:desktop-pet')!.values['worlds.desktop-pet.window.scale']).toBe(1);
     expect((await t.get('/api/config/options/anything')).body).toEqual({ options: [] });
+  });
+
+  it('offers the interface language and saves a change', async () => {
+    const t = await setup();
+    const { groups } = (await t.get('/api/config')).body as { groups: Array<{ group: { id: string }; values: Record<string, unknown> }> };
+    expect(groups.find((g) => g.group.id === 'companion')!.values).toEqual({ language: 'zh' });
+    const { options } = (await t.get('/api/config/options/coopanion.language')).body as { options: Array<{ value: string; label: string }> };
+    expect(options).toHaveLength(11);
+    expect(options).toContainEqual({ value: 'ja', label: '日本語' });
+    const r = await t.post('/api/config', { group: 'companion', values: { language: 'en' } });
+    expect(r.body).toMatchObject({ ok: true, result: 'Saved' });
+    expect(t.loaded.cfg.language).toBe('en');
+    expect(t.pet.refresh).toHaveBeenCalledOnce();
+    expect(t.onLanguage).toHaveBeenCalledWith('en');
+    expect((await t.post('/api/config', { group: 'companion', values: { language: 'xx' } })).status).toBe(400);
+    expect(t.loaded.cfg.language).toBe('en');
   });
 
   it('writes a checked value, refreshes the pet and returns the groups', async () => {
