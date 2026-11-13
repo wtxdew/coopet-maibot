@@ -11,6 +11,8 @@
  * 同样的时间点也记进 TurnStats（stats()），设置窗「运行诊断」显示。
  * 回复、思考信号对不上具体是哪条消息引起的，统一按最近一次输入计时；
  * 距最近一次输入超过 TURN_WINDOW_MS 的回复记成 `[主动]`。
+ *
+ * 扩展 World 的通知按路由（routing.ts）决定说不说、说什么。送给麦麦的现在先由桌宠说（World 扩展第二步再接上）。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -21,7 +23,7 @@ import { TurnStats, type ConversationStats } from './stats.ts';
 import { route } from './routing.ts';
 import { escapeScript } from '../expr/escape.ts';
 import type { Language } from 'cortico/core/language.ts';
-import type { RouteMode } from '../runtime/config.ts';
+import { ROUTE_DEFAULTS, type RouteSettings } from '../runtime/config.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
@@ -34,8 +36,8 @@ export interface ConductorOptions {
   thinkingTimeoutMs?: number;
   /** 时间线用的时钟（毫秒），测试时替换 */
   now?: () => number;
-  /** 扩展 World 的路由设置（cfg.routes），没写的按 auto */
-  routeOf?: (worldId: string) => RouteMode;
+  /** 扩展 World 的路由设置（cfg.routes），没写的按 ROUTE_DEFAULTS */
+  routeOf?: (worldId: string) => RouteSettings;
   /** 界面语言（渲染通知用） */
   language?: () => Language;
 }
@@ -92,13 +94,14 @@ export class Conductor {
    * 不算一轮对话，也不发给 MaiBot（交给麦麦是以后的事）。
    */
   worldEvent(worldId: string, { event }: HostedEvent): void {
-    const mode = this.opts.routeOf?.(worldId) ?? 'auto';
-    const decision = route(event, mode, this.opts.language?.() ?? 'zh');
+    const settings = this.opts.routeOf?.(worldId) ?? ROUTE_DEFAULTS;
+    const decision = route(event, settings, this.opts.language?.() ?? 'zh');
     if ('skip' in decision) {
       this.opts.log.debug(`[通知 · ${worldId}] #${event.cursor} ${event.type} 不处理（${decision.skip}）`);
       return;
     }
-    this.opts.log.info(`[通知 · ${worldId}] #${event.cursor} ${event.type} → 桌宠说：${preview(decision.say)}`);
+    const fallback = decision.to === 'maibot' ? '（交给麦麦还不能用，先由桌宠说）' : '';
+    this.opts.log.info(`[通知 · ${worldId}] #${event.cursor} ${event.type} → 桌宠说${fallback}：${preview(decision.say)}`);
     void this.say(decision.say);
   }
 

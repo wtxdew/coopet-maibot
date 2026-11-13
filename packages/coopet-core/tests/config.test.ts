@@ -195,17 +195,29 @@ describe('world sections', () => {
 });
 
 describe('routes', () => {
-  it('keeps route modes per world and refuses unknown ones', () => {
+  it('reads route settings, moves the old modes over, and refuses bad values', () => {
     const root = mkdtempSync(join(tmpdir(), 'coopet-routes-'));
     const dirs = coopetDirs(root);
-    writeFileSync(dirs.configFile, JSON.stringify({ routes: { a: { mode: 'pet' }, b: { mode: 'loud' } } }));
+    writeFileSync(dirs.configFile, JSON.stringify({ routes: {
+      a: { mode: 'auto' }, b: { mode: 'pet' }, c: { mode: 'off' },
+      d: { mode: 'rule', unknown: 'pet', maxChars: 40 }, e: { mode: 'loud', unknown: 'x', maxChars: 2 },
+    } }));
     const loaded = loadConfig(dirs, { debounceMs: 0 });
-    expect(loaded.cfg.routes).toEqual({ a: { mode: 'pet' } });
-    loaded.persist({ routes: { c: { mode: 'off' } } });
-    expect(loaded.cfg.routes).toEqual({ a: { mode: 'pet' }, c: { mode: 'off' } });
-    expect(() => loaded.persist({ routes: { d: { mode: 'loud' as never } } })).toThrow(/routes.d.mode/);
+    expect(loaded.cfg.routes).toEqual({
+      a: { mode: 'pet', unknown: 'record', maxChars: 80 },
+      b: { mode: 'pet', unknown: 'pet', maxChars: 80 },
+      c: { mode: 'off', unknown: 'record', maxChars: 80 },
+      d: { mode: 'rule', unknown: 'pet', maxChars: 40 },
+      e: { mode: 'pet', unknown: 'record', maxChars: 80 },
+    });
+    loaded.persist({ routes: { a: { maxChars: 120 }, f: { mode: 'off' } } });
+    expect(loaded.cfg.routes.a).toEqual({ mode: 'pet', unknown: 'record', maxChars: 120 });
+    expect(loaded.cfg.routes.f).toEqual({ mode: 'off', unknown: 'record', maxChars: 80 });
+    expect(() => loaded.persist({ routes: { g: { mode: 'loud' as never } } })).toThrow(/routes.g.mode/);
+    expect(() => loaded.persist({ routes: { g: { unknown: 'shout' as never } } })).toThrow(/routes.g.unknown/);
+    expect(() => loaded.persist({ routes: { g: { maxChars: 5 } } })).toThrow(/routes.g.maxChars/);
     loaded.flush();
-    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).routes).toEqual({ a: { mode: 'pet' }, c: { mode: 'off' } });
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).routes.a).toEqual({ mode: 'pet', unknown: 'record', maxChars: 120 });
   });
 });
 

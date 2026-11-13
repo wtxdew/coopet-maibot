@@ -14,7 +14,7 @@ import { CoopetPluginLink } from './link/coopet-plugin.ts';
 import { MaimLegacyLink } from './link/maim-legacy.ts';
 import type { Link } from './link/types.ts';
 import { LinkSwitch } from './link/switch.ts';
-import { coopetDirs, deviceId, LEGACY_DATA_ROOT, loadConfig, migrateLegacyData, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
+import { coopetDirs, deviceId, LEGACY_DATA_ROOT, loadConfig, migrateLegacyData, ROUTE_DEFAULTS, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
 import { openEventLog } from './runtime/event-store.ts';
 import { consoleLogger, DailyFileSink, switchableSink } from './runtime/log.ts';
 import { openRunlog } from './runtime/runlog.ts';
@@ -105,7 +105,7 @@ const pet = await startPet({
 
 conductor = new Conductor({
   pet, link, log: log.child('conductor'), botName, decorate: createDecorator(),
-  routeOf: (worldId) => cfg.routes[worldId]?.mode ?? 'auto',
+  routeOf: (worldId) => cfg.routes[worldId] ?? ROUTE_DEFAULTS,
   language: () => cfg.language,
 });
 link.start();

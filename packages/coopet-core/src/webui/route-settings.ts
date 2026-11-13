@@ -1,29 +1,47 @@
 /**
  * 每个扩展 World 一组「Coopet 怎么处理它的通知」：配置组 `coopet.route.<worldId>`，
  * 追加进那个 World 页的配置标签（extension-worlds.ts 的 extraConfig），值存在 config.json 的 routes.<worldId>。
- * 选项的文字来自 `/api/config/options/coopet.route-mode`。
+ * 三项（含义见 runtime/config.ts 的 RouteSettings、conductor/routing.ts）：
+ * - 处理方式：桌宠 / 麦麦 / 规则 / 关闭；
+ * - 认不得的通知：只记录 / 桌宠念开头 / 交给麦麦；
+ * - 最多念多少字。
+ * 两个下拉框的选项文字来自 `/api/config/options/coopet.route-mode`、`coopet.route-unknown`。
  */
 
 import type { ConfigGroup, ConfigValues } from 'cortico/core/config-schema.ts';
 import { baseLanguage, type Language } from 'cortico/core/language.ts';
-import { ROUTE_MODES, type AppPatch, type CoopetConfig, type RouteMode } from '../runtime/config.ts';
+import {
+  MAX_CHARS_RANGE, ROUTE_DEFAULTS, ROUTE_MODES, UNKNOWN_MODES,
+  type AppPatch, type CoopetConfig, type RouteMode, type RouteSettings, type UnknownMode,
+} from '../runtime/config.ts';
 
 export const ROUTE_PREFIX = 'coopet.route.';
 export const ROUTE_OPTIONS = 'coopet.route-mode';
-const KEY = 'route.mode';
+export const UNKNOWN_OPTIONS = 'coopet.route-unknown';
+const KEYS = { mode: 'route.mode', unknown: 'route.unknown', maxChars: 'route.maxChars' } as const;
 
 const TEXT = {
   zh: {
     title: 'Coopet 怎么处理它的通知',
     mode: '处理方式',
-    hint: '扩展 World 的通知原本是写给模型看的。「自动」只说 Coopet 认得的通知（例如 Coding Agent 完成），其余只记进事件流；「全部让桌宠说」会念出认不得的通知的开头。',
-    options: { auto: '自动（推荐）', pet: '全部让桌宠说', off: '不处理' } as Record<RouteMode, string>,
+    modeHint: 'Coopet 认得的通知（例如 Coding Agent 完成）送到哪里。「规则」按扩展自己的分类走（例如 ntfy 每个话题的设置）；扩展没有分类时按「桌宠」。「交给麦麦」还不能用，先由桌宠说。',
+    modes: { pet: '桌宠', maibot: '麦麦（还不能用）', rule: '规则', off: '关闭' } as Record<RouteMode, string>,
+    unknown: '认不得的通知',
+    unknownHint: '扩展的通知原本是写给模型看的，Coopet 认不得的念出来多半不通顺。',
+    unknowns: { record: '只记录', pet: '桌宠念开头', maibot: '交给麦麦（还不能用）' } as Record<UnknownMode, string>,
+    maxChars: '最多念多少字',
+    maxCharsHint: `桌宠气泡里一条通知最多显示多少字（${MAX_CHARS_RANGE.min}–${MAX_CHARS_RANGE.max}），超出的截掉。`,
   },
   en: {
     title: 'How Coopet handles its notifications',
     mode: 'Handling',
-    hint: 'Extension World notifications are written for a model. Auto says only the ones Coopet knows (such as a coding agent finishing) and keeps the rest in the event stream; Let the pet say all reads out the start of unknown ones.',
-    options: { auto: 'Auto (recommended)', pet: 'Let the pet say all', off: 'Ignore' } as Record<RouteMode, string>,
+    modeHint: 'Where notifications Coopet knows (such as a coding agent finishing) go. Rules follow the extension\'s own categories (such as each ntfy topic\'s setting); an extension without categories uses Pet. MaiBot is not ready yet; the pet says them meanwhile.',
+    modes: { pet: 'Pet', maibot: 'MaiBot (not ready yet)', rule: 'Rules', off: 'Off' } as Record<RouteMode, string>,
+    unknown: 'Unknown notifications',
+    unknownHint: 'Extension notifications are written for a model; read out as they are, the ones Coopet does not know rarely sound right.',
+    unknowns: { record: 'Only record', pet: 'Pet reads the start', maibot: 'Hand to MaiBot (not ready yet)' } as Record<UnknownMode, string>,
+    maxChars: 'Longest notification',
+    maxCharsHint: `How many characters of a notification the pet's bubble shows at most (${MAX_CHARS_RANGE.min}–${MAX_CHARS_RANGE.max}); the rest is cut.`,
   },
 } as const;
 
@@ -36,29 +54,42 @@ export function routeGroup(worldId: string, language: Language): ConfigGroup {
       type: 'object',
       title: t.title,
       properties: {
-        [KEY]: { type: 'string', title: t.mode, description: t.hint, enum: [...ROUTE_MODES], 'x-options': ROUTE_OPTIONS, 'x-hot': true },
+        [KEYS.mode]: { type: 'string', title: t.mode, description: t.modeHint, enum: [...ROUTE_MODES], 'x-options': ROUTE_OPTIONS, 'x-hot': true },
+        [KEYS.unknown]: { type: 'string', title: t.unknown, description: t.unknownHint, enum: [...UNKNOWN_MODES], 'x-options': UNKNOWN_OPTIONS, 'x-hot': true },
+        [KEYS.maxChars]: { type: 'integer', title: t.maxChars, description: t.maxCharsHint, minimum: MAX_CHARS_RANGE.min, maximum: MAX_CHARS_RANGE.max, 'x-hot': true },
       },
     },
   };
 }
 
-export function routeOptions(language: Language): Array<{ value: string; label: string }> {
+/** 两个下拉框的选项；不是这里的返回 null */
+export function routeOptions(kind: string, language: Language): Array<{ value: string; label: string }> | null {
   const t = TEXT[baseLanguage(language)];
-  return ROUTE_MODES.map((value) => ({ value, label: t.options[value] }));
+  if (kind === ROUTE_OPTIONS) return ROUTE_MODES.map((value) => ({ value, label: t.modes[value] }));
+  if (kind === UNKNOWN_OPTIONS) return UNKNOWN_MODES.map((value) => ({ value, label: t.unknowns[value] }));
+  return null;
 }
 
-export function routeMode(cfg: CoopetConfig, worldId: string): RouteMode {
-  return cfg.routes[worldId]?.mode ?? 'auto';
+export function routeSettings(cfg: CoopetConfig, worldId: string): RouteSettings {
+  return cfg.routes[worldId] ?? ROUTE_DEFAULTS;
 }
 
 export function routeValues(cfg: CoopetConfig, worldId: string): ConfigValues {
-  return { [KEY]: routeMode(cfg, worldId) };
+  const r = routeSettings(cfg, worldId);
+  return { [KEYS.mode]: r.mode, [KEYS.unknown]: r.unknown, [KEYS.maxChars]: r.maxChars };
 }
 
-/** 保存；返回有没有改动 */
+/** 保存；返回有没有改动。值已经过 WebApp 的 coerceGroupValues 检查，范围再由 persist 检查 */
 export function saveRoute(worldId: string, values: ConfigValues, deps: { cfg: CoopetConfig; persist(patch: AppPatch): void }): boolean {
-  const mode = values[KEY] as RouteMode | undefined;
-  if (!mode || mode === routeMode(deps.cfg, worldId)) return false;
-  deps.persist({ routes: { [worldId]: { mode } } });
+  const now = routeSettings(deps.cfg, worldId);
+  const patch: Partial<RouteSettings> = {};
+  const mode = values[KEYS.mode] as RouteMode | undefined;
+  const unknown = values[KEYS.unknown] as UnknownMode | undefined;
+  const maxChars = values[KEYS.maxChars] as number | undefined;
+  if (mode !== undefined && mode !== now.mode) patch.mode = mode;
+  if (unknown !== undefined && unknown !== now.unknown) patch.unknown = unknown;
+  if (maxChars !== undefined && maxChars !== now.maxChars) patch.maxChars = maxChars;
+  if (Object.keys(patch).length === 0) return false;
+  deps.persist({ routes: { [worldId]: patch } });
   return true;
 }

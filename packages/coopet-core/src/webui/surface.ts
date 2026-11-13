@@ -42,7 +42,7 @@ import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts
 import { AUTO_UPDATE_KEY, autoUpdateProperties, saveUpdateValues, updateValues } from './update-settings.ts';
 import type { ConversationStats } from '../conductor/stats.ts';
 import type { extensionWorlds } from './extension-worlds.ts';
-import { ROUTE_OPTIONS, ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from './route-settings.ts';
+import { ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from './route-settings.ts';
 
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
@@ -229,7 +229,8 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
           const worldId = groupId.slice(ROUTE_PREFIX.length);
           if (!d.extensions?.runningIds().includes(worldId)) throw new Error(`没有这个 World：${worldId}`);
           if (!saveRoute(worldId, values, d)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
-          d.log.info(`设置窗改了 ${worldId} 的通知处理方式：${d.cfg.routes[worldId]?.mode}`);
+          const r = d.cfg.routes[worldId];
+          d.log.info(`设置窗改了 ${worldId} 的通知处理：${r?.mode}，认不得的 ${r?.unknown}，最多 ${r?.maxChars} 字`);
           return baseLanguage(language) === 'zh' ? '已保存' : 'Saved';
         }
         const fromExtension = d.extensions?.setConfig(groupId, values, language);
@@ -254,8 +255,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       },
       options: (kind, language) => (kind === LANGUAGE_OPTIONS
         ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] }))
-        : kind === ROUTE_OPTIONS ? routeOptions(language)
-        : d.extensions?.options(kind, language) ?? []),
+        : routeOptions(kind, language) ?? d.extensions?.options(kind, language) ?? []),
     },
     worlds: (language) => [worldInfo(language), ...(d.extensions?.infos(language) ?? [])],
     webUiPageSources: () => [petPage, ...(d.extensions?.pages() ?? [])],

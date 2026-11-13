@@ -56,13 +56,20 @@ export interface LogConfig {
 }
 
 /**
- * 扩展 World 的事件怎么处理（Conductor 的路由）：
- * - auto：有专门渲染的事件让桌宠说，其余不处理（默认）；
- * - pet：全部让桌宠说，没有专门渲染的念正文开头；
- * - off：只存进事件库，不处理。
+ * 扩展 World 的通知怎么处理（Conductor 的路由，conductor/routing.ts），每个扩展一份：
+ * - mode：认得的通知（Coopet 有专门说法的）送到哪：pet 桌宠说、maibot 交给麦麦、
+ *   rule 按扩展在事件里带的分类去向（meta.route），off 全部不处理（只记进事件流）；
+ * - unknown：认不得的通知：record 只记录、pet 桌宠念开头、maibot 交给麦麦；
+ * - maxChars：桌宠最多念多少字。
+ * 「交给麦麦」要等 World 扩展第二步（协议加 notice），在那之前先由桌宠说。
  */
-export type RouteMode = 'auto' | 'pet' | 'off';
-export const ROUTE_MODES: readonly RouteMode[] = ['auto', 'pet', 'off'];
+export type RouteMode = 'pet' | 'maibot' | 'rule' | 'off';
+export const ROUTE_MODES: readonly RouteMode[] = ['pet', 'maibot', 'rule', 'off'];
+export type UnknownMode = 'record' | 'pet' | 'maibot';
+export const UNKNOWN_MODES: readonly UnknownMode[] = ['record', 'pet', 'maibot'];
+export interface RouteSettings { mode: RouteMode; unknown: UnknownMode; maxChars: number }
+export const ROUTE_DEFAULTS: Readonly<RouteSettings> = { mode: 'pet', unknown: 'record', maxChars: 80 };
+export const MAX_CHARS_RANGE = { min: 10, max: 500 } as const;
 
 export interface CoopetConfig {
   /** 界面语言：设置窗、桌宠、托盘。没设置过时跟系统语言；MaiBot 用什么语言回复不受它影响 */
@@ -72,8 +79,8 @@ export interface CoopetConfig {
   log: LogConfig;
   link: LinkConfig;
   pet: DesktopPetConfigSection;
-  /** 按 World id 的路由设置；没写的按 auto */
-  routes: Record<string, { mode: RouteMode }>;
+  /** 按 World id 的路由设置；没写的按 ROUTE_DEFAULTS */
+  routes: Record<string, RouteSettings>;
   /** 自动更新（只有能自己装更新的版本用到，见 webui/update-settings.ts）；默认开 */
   update: UpdateConfig;
 }
@@ -231,7 +238,7 @@ interface FileShape {
 /** 桌宠以外、可以在配置窗里改的部分。 */
 export interface AppPatch {
   language?: Language;
-  routes?: Record<string, { mode: RouteMode }>;
+  routes?: Record<string, Partial<RouteSettings>>;
   botName?: string;
   log?: Partial<LogConfig>;
   link?: DeepPartial<LinkConfig>;
@@ -317,9 +324,7 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.botName !== undefined && (typeof patch.botName !== 'string' || !patch.botName.trim())) {
         throw new Error('botName 必须是非空字符串');
       }
-      for (const [id, route] of Object.entries(patch.routes ?? {})) {
-        if (!ROUTE_MODES.includes(route?.mode)) throw new Error(`routes.${id}.mode 只能是 ${ROUTE_MODES.join('、')}，收到：${String(route?.mode)}`);
-      }
+      for (const [id, route] of Object.entries(patch.routes ?? {})) checkRoute(id, route);
       if (patch.language !== undefined && !isLanguage(patch.language)) {
         throw new Error(`language 不是支持的语言：${String(patch.language)}`);
       }
@@ -343,7 +348,8 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
         cfg.language = patch.language;
       }
       if (patch.routes !== undefined) {
-        const next = { ...routesFrom(overrides.routes), ...patch.routes };
+        const next = routesFrom(overrides.routes);
+        for (const [id, route] of Object.entries(patch.routes)) next[id] = { ...(next[id] ?? ROUTE_DEFAULTS), ...route };
         overrides.routes = next;
         cfg.routes = next;
       }
@@ -383,15 +389,37 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
 
 const LEVELS: readonly LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
 
-/** 文件里的 routes：不认识的方式丢掉（按 auto） */
-function routesFrom(raw: unknown): Record<string, { mode: RouteMode }> {
-  const out: Record<string, { mode: RouteMode }> = {};
+/**
+ * 文件里的 routes。不合格的项换成默认值。旧版只有 mode（auto / pet / off）：
+ * auto → 桌宠说、认不得的只记录；pet（当时的意思是全部让桌宠说）→ 桌宠说、认不得的念开头。
+ */
+function routesFrom(raw: unknown): Record<string, RouteSettings> {
+  const out: Record<string, RouteSettings> = {};
   if (!isPlainObject(raw)) return out;
   for (const [id, route] of Object.entries(raw)) {
-    const mode = isPlainObject(route) ? route.mode : undefined;
-    if (ROUTE_MODES.includes(mode as RouteMode)) out[id] = { mode: mode as RouteMode };
+    if (!isPlainObject(route)) continue;
+    const legacy = !('unknown' in route) && !('maxChars' in route);
+    const mode = route.mode === 'auto' ? 'pet' : route.mode;
+    const unknown = legacy ? (route.mode === 'pet' ? 'pet' : 'record') : route.unknown;
+    const maxChars = route.maxChars;
+    out[id] = {
+      mode: ROUTE_MODES.includes(mode as RouteMode) ? mode as RouteMode : ROUTE_DEFAULTS.mode,
+      unknown: UNKNOWN_MODES.includes(unknown as UnknownMode) ? unknown as UnknownMode : ROUTE_DEFAULTS.unknown,
+      maxChars: validMaxChars(maxChars) ? maxChars : ROUTE_DEFAULTS.maxChars,
+    };
   }
   return out;
+}
+
+function validMaxChars(n: unknown): n is number {
+  return Number.isInteger(n) && (n as number) >= MAX_CHARS_RANGE.min && (n as number) <= MAX_CHARS_RANGE.max;
+}
+
+function checkRoute(id: string, route: Partial<RouteSettings> | undefined): void {
+  if (!route) return;
+  if (route.mode !== undefined && !ROUTE_MODES.includes(route.mode)) throw new Error(`routes.${id}.mode 只能是 ${ROUTE_MODES.join('、')}，收到：${String(route.mode)}`);
+  if (route.unknown !== undefined && !UNKNOWN_MODES.includes(route.unknown)) throw new Error(`routes.${id}.unknown 只能是 ${UNKNOWN_MODES.join('、')}，收到：${String(route.unknown)}`);
+  if (route.maxChars !== undefined && !validMaxChars(route.maxChars)) throw new Error(`routes.${id}.maxChars 要是 ${MAX_CHARS_RANGE.min}–${MAX_CHARS_RANGE.max} 的整数，收到：${String(route.maxChars)}`);
 }
 
 function logFrom(raw: unknown): LogConfig {
