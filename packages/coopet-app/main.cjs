@@ -7,7 +7,7 @@
  * - 其他：app 模式。只运行一个实例（再打开时让桌宠重新显示）；macOS 上不占 Dock；
  *   启动核心子进程（core-host.cjs），建托盘（tray.cjs）；退出时先停核心，再退出。
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, shell } = require('electron');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { APP_ROOT, CORE_ENTRY, CORE_ROOT, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
@@ -85,15 +85,9 @@ function runApp() {
     mkdirSync(LOGS_DIR, { recursive: true });
     void shell.openPath(LOGS_DIR);
   };
-  /** @type {BrowserWindow | null} */
-  let dressWindow = null;
-  const openDress = () => {
-    if (!state.petOrigin) return;
-    if (dressWindow) { dressWindow.show(); dressWindow.focus(); return; }
-    dressWindow = new BrowserWindow({ width: 980, height: 720, title: 'Coopet 装扮', autoHideMenuBar: true, webPreferences: { contextIsolation: true, sandbox: true } });
-    dressWindow.on('closed', () => { dressWindow = null; });
-    void dressWindow.loadURL(`${state.petOrigin}/dress`);
-  };
+  /** 装扮：打开设置窗的装扮页（和 Coopanion 一样，不单独开窗口） */
+  const openDress = () => settings?.open('#/dress');
+
 
   core.on('state', (/** @type {import('./tray-menu.cjs').TrayState['core']} */ s) => {
     state.core = s;
@@ -117,7 +111,7 @@ function runApp() {
     else if (m?.type === 'link') state.link = { kind: m.kind, state: m.state, reason: m.reason, botName: m.botName };
     else if (m?.type === 'pet') state.onDesktop = !!m.onDesktop;
     else if (m?.type === 'quit') { app.quit(); return; }
-    else if (m?.type === 'open-settings') { settings?.open(); return; }
+    else if (m?.type === 'open-settings') { settings?.open(typeof m.route === 'string' && m.route.startsWith('#/') ? m.route : ''); return; }
     refresh();
   });
 
