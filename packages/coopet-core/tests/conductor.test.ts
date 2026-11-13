@@ -171,6 +171,15 @@ describe('Conductor', () => {
   });
 });
 
+describe('reply escaping', () => {
+  it('escapes markers in the reply before the expression rules add their own', async () => {
+    const t = setup('open', { decorate: (text) => `<happy>${text}` });
+    t.incoming([{ kind: 'text', text: '【开心】好呀<笑>' }]);
+    await tick();
+    expect(t.calls.find((c) => c.k === 'say')).toEqual({ k: 'say', script: '<happy>〖开心〗好呀‹笑>' });
+  });
+});
+
 describe('extension world events', () => {
   it('lets the pet say what routing renders, and ignores what it skips', async () => {
     const t = setup('open');

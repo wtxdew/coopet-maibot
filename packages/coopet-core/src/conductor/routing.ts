@@ -5,12 +5,13 @@
  * 不能原样念。所以认得的事件类型有专门的渲染（RENDERERS），把它说成一句适合气泡的话；
  * 认不得的按路由设置：auto 不处理，pet 念正文开头。
  *
- * 气泡文字先清理：去掉 Markdown 记号，把桌宠脚本会当成动作标记的【】、<>、＜＞ 换成相似的字符。
+ * 气泡文字先清理：去掉 Markdown 记号，再转义桌宠脚本会当成动作标记的写法（expr/escape.ts）。
  */
 
 import type { EventEnvelope } from 'cortico/core/types.ts';
 import { baseLanguage, type Language } from 'cortico/core/language.ts';
 import type { RouteMode } from '../runtime/config.ts';
+import { escapeScript } from '../expr/escape.ts';
 
 /** 一个事件该怎么处理 */
 export type RouteDecision = { say: string } | { skip: 'off' | 'no-renderer' | 'empty' };
@@ -57,19 +58,16 @@ export function route(e: EventEnvelope, mode: RouteMode, language: Language): Ro
   return said ? { say: said } : { skip: 'empty' };
 }
 
-/** 气泡里的纯文字：去掉 Markdown 记号，换掉会被当成动作标记的括号，压掉多余空白 */
+/** 气泡里的纯文字：去掉 Markdown 记号，压掉多余空白，再转义会被当成动作标记的写法 */
 export function plain(text: string): string {
-  return text
+  return escapeScript(text
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/^#+\s*/gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/【/g, '〖').replace(/】/g, '〗')
-    .replace(/</g, '‹').replace(/>/g, '›')
-    .replace(/＜/g, '﹤').replace(/＞/g, '﹥')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim());
 }
 
 /** 第一句（到第一个句号、问号、叹号或换行），再截到 max 字 */

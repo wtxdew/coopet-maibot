@@ -19,6 +19,7 @@ import type { PetHandle } from '../runtime/pet.ts';
 import type { HostedEvent } from '../runtime/world-host.ts';
 import { TurnStats, type ConversationStats } from './stats.ts';
 import { route } from './routing.ts';
+import { escapeScript } from '../expr/escape.ts';
 import type { Language } from 'cortico/core/language.ts';
 import type { RouteMode } from '../runtime/config.ts';
 
@@ -167,8 +168,9 @@ export class Conductor {
     }
     this.trace(`回复到达（${[...text].length} 字）：${preview(text)}`);
     this.turnStats.mark('reply');
-    // TODO（ROADMAP 阶段 6）：显示前转义文字里的【】、<>、＜＞，否则会被当成动作标记吃掉
-    const script = this.opts.decorate ? this.opts.decorate(text) : text;
+    // 先转义（回复里的【】、短的 <…> 会被桌宠当成动作标记吃掉），再加表情规则的动作标记
+    const safe = escapeScript(text);
+    const script = this.opts.decorate ? this.opts.decorate(safe) : safe;
     this.opts.pet.phase({ state: 'tools', running: ['pet_say'] });
     await this.say(script);
     this.trace('气泡显示');

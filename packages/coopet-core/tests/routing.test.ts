@@ -36,6 +36,6 @@ describe('route', () => {
 
 describe('plain', () => {
   it('drops markdown and swaps brackets the pet script would treat as action markers', () => {
-    expect(plain('# 标题\n`code` 【开心】 <smile> ＜b＞ [链接](http://x)\n```\nblock\n```')).toBe('标题 code 〖开心〗 ‹smile› ﹤b﹥ 链接');
+    expect(plain('# 标题\n`code` 【开心】 <smile> ＜b＞ [链接](http://x)\n```\nblock\n```')).toBe('标题 code 〖开心〗 ‹smile> ﹤b＞ 链接');
   });
 });
