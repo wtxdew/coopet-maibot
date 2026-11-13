@@ -10,9 +10,10 @@
 
 import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { Logger } from 'cortico/core/types.ts';
 import { WEBUI_PROTOCOL_VERSION, assetKeyForPage, pageIdFor, type WebUiAssetEntry } from 'cortico/web/shared/webui-protocol.ts';
+import { extensionAssetSegment, type ExtensionWebUiAsset } from 'cortico/extensions/manifest.ts';
 import { PET_WORLD_ID } from './surface.ts';
 
 /**
@@ -23,8 +24,11 @@ export function petPackageDir(): string {
   return dirname(dirname(createRequire(import.meta.url).resolve('cortico-world-desktop-pet')));
 }
 
-/** 准备 webDistDir，返回它的路径。 */
-export function prepareWebAssets(dataDir: string, log: Logger, petDir = petPackageDir()): string {
+/**
+ * 准备 webDistDir，返回它的路径。扩展的面板脚本（加载时读进内存的字节）写到 `ext/<包>/<版本>/` 下；
+ * 不用 `/assets/extensions/`，那个前缀 WebApp 留给它自己的扩展表。
+ */
+export function prepareWebAssets(dataDir: string, log: Logger, petDir = petPackageDir(), extensionAssets: readonly ExtensionWebUiAsset[] = []): string {
   const out = join(dataDir, 'webui');
   rmSync(out, { recursive: true, force: true });
   const target = join(out, PET_WORLD_ID);
@@ -43,6 +47,19 @@ export function prepareWebAssets(dataDir: string, log: Logger, petDir = petPacka
     providers[assetKeyForPage(pageIdFor('world', PET_WORLD_ID))] = entry;
   } else {
     log.warn(`桌宠面板脚本没有构建（${js}），设置窗的 World 页用不了；先运行 corepack pnpm run build:pet`);
+  }
+  for (const a of extensionAssets) {
+    const rel = ['ext', extensionAssetSegment(a.packageName), extensionAssetSegment(a.version)];
+    mkdirSync(join(out, ...rel), { recursive: true });
+    const jsName = extensionAssetSegment(basename(a.jsFile));
+    writeFileSync(join(out, ...rel, jsName), a.jsBytes);
+    const entry: WebUiAssetEntry = { js: `/assets/${rel.join('/')}/${jsName}` };
+    if (a.cssFile && a.cssBytes) {
+      const cssName = extensionAssetSegment(basename(a.cssFile));
+      writeFileSync(join(out, ...rel, cssName), a.cssBytes);
+      entry.css = `/assets/${rel.join('/')}/${cssName}`;
+    }
+    providers[assetKeyForPage(a.pageId)] = entry;
   }
   writeFileSync(join(out, 'asset-manifest.json'), JSON.stringify({ protocolVersion: WEBUI_PROTOCOL_VERSION, core: null, providers }, null, 2));
   return out;
