@@ -63,9 +63,13 @@
     托盘和桌宠菜单的装扮、对话、World 打开设置窗对应页面；删掉旧的手写设置页和 IPC 设置通道（2026-11-13，在真实外壳里检查过，界面待你确认）
   - [x] 第三期：运行诊断页（运行状态卡、对话统计、事件流、运行日志、日志设置、导出诊断包）；每次运行一份结构化日志
     （Cortico 格式，保留 7 天），文本日志照旧；日志级别马上生效（2026-11-13，在真实外壳里检查过）
-- [ ] World 扩展（从阶段 4 提前，先于本地 Agent）：加载 Cortico 格式的 World 扩展；第一个用第三方的
+- [x] World 扩展（从阶段 4 提前，先于本地 Agent）：加载 Cortico 格式的 World 扩展；第一个用第三方的
   `cortico-world-coding-agent-notify`（ThermalEng，Claude Code 等 Coding Agent 完成后通知）；
-  Conductor 按来源路由事件（桌宠直接说 / 交给麦麦 / 不处理）。原定的本地 WebHook 不做：笔电收不到外部请求
+  Conductor 按来源路由事件（桌宠直接说 / 交给麦麦 / 不处理）。原定的本地 WebHook 不做：笔电收不到外部请求。
+  2026-11-13：扩展目录 `~/.config/coopet/extensions`、`ext add/remove/list` 命令、设置窗里的启用开关和面板、
+  「桌宠直接说」的路由都已完成，Claude Code 完成通知实测可用
+- [ ] World 扩展第二步：通知交给麦麦（协议加 `notice`、插件更新，或借 MaiBot 的回复生成器转述，先查清接口）；
+  扩展名字和图标跟着界面语言和扩展自带的图标
 - [x] 复用桌宠自带的装扮页和形象包导入（托盘「装扮…」打开 `/dress`）
 - [ ] 打包 macOS arm64、Windows x64
 - [x] 断线重连、离线提示；没确认的消息不自动重发（阶段 1、2 的 link 与 Conductor 已实现；托盘显示连接状态）
