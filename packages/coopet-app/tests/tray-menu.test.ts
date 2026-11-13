@@ -35,6 +35,16 @@ describe('trayTemplate', () => {
     expect(a.quit).toHaveBeenCalled();
   });
 
+  it('offers restart-and-update once an update is downloaded', () => {
+    const a = { ...actions(), installUpdate: vi.fn() };
+    expect(trayTemplate(base, a).some((i: any) => i.label?.startsWith('重启并更新'))).toBe(false);
+    const items = trayTemplate({ ...base, updateReady: '0.1.4' }, a);
+    expect(items.map((i: any) => i.label ?? '—').slice(-2)).toEqual(['重启并更新到 v0.1.4', '退出 Coopet']);
+    items.find((i: any) => i.label === '重启并更新到 v0.1.4').click();
+    expect(a.installUpdate).toHaveBeenCalled();
+    expect(trayTemplate({ ...base, updateReady: '0.1.4', language: 'en' }, a).some((i: any) => i.label === 'Restart and update to v0.1.4')).toBe(true);
+  });
+
   it('disables pet items until the core runs, and offers a restart after it failed', () => {
     const starting = trayTemplate({ ...base, core: 'starting', onDesktop: false }, actions());
     expect(starting.find((i: any) => i.label === '显示桌宠').enabled).toBe(false);

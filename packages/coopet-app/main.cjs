@@ -9,9 +9,10 @@
  *
  * 自动更新（updater.cjs，照 Coopanion）：只有能自己装更新的版本（Windows 安装版）运行更新器。
  * 核心告诉开关（auto-update，存在 config.json），更新器的每一步告诉核心（桌宠气泡）和设置窗（标题栏）；
- * 气泡里点了「现在重启更新」（update-install）就退出并静默安装、装完重新打开；没点的话退出时安装、不重新打开。
+ * 气泡里点了「现在重启更新」（update-install）或托盘的「重启并更新」就退出并静默安装；没点的话退出时安装。
+ * 两种都装完重新打开，退出安装时还弹一条系统通知：静默安装要一两分钟，没有提示的话容易在中途又去打开旧版本。
  */
-const { app, shell } = require('electron');
+const { app, shell, Notification } = require('electron');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { APP_ROOT, CORE_ENTRY, CORE_ROOT, CORTICO_RESOLVER, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
@@ -80,6 +81,8 @@ function runApp() {
     language: 'zh',
     loginItem: false,
     loginItemAvailable: app.isPackaged,
+    /** 下载好的更新的版本（托盘显示「重启并更新」） */
+    updateReady: /** @type {string | null} */ (null),
   };
   /** @type {{ refresh: () => void } | null} */
   let tray = null;
@@ -104,7 +107,7 @@ function runApp() {
   let updateStep = null;
   /** 设置窗标题栏显示的部分 */
   const updateLine = () => updateStep && { phase: updateStep.phase, version: updateStep.version };
-  /** 气泡里点了「现在重启更新」：装完重新打开 */
+  /** 是不是点了「现在重启更新」退出的（只记日志：两种退出都装完重新打开） */
   let restartAfterUpdate = false;
   /** @param {boolean} enabled */
   const setAutoUpdate = (enabled) => {
@@ -116,10 +119,18 @@ function runApp() {
       tell: (/** @type {any} */ step) => {
         updateStep = step;
         if (step) log(`更新：${step.phase} ${step.version}`);
+        state.updateReady = step?.phase === 'ready' ? step.version : null;
         core.send({ type: 'update', step });
         settings?.updateStep(updateLine());
+        refresh();
       },
     });
+  };
+  /** 现在重启更新：先退出（停核心、收托盘图标）再装，安装程序会结束还在运行的 Coopet */
+  const installUpdateNow = () => {
+    if (!updater?.hasUpdate()) return;
+    restartAfterUpdate = true;
+    app.quit();
   };
 
   /** 装扮：打开设置窗的装扮页（和 Coopanion 一样，不单独开窗口） */
@@ -152,7 +163,7 @@ function runApp() {
     else if (m?.type === 'open-settings') { settings?.open(typeof m.route === 'string' && m.route.startsWith('#/') ? m.route : ''); return; }
     else if (m?.type === 'auto-update') { setAutoUpdate(m.enabled === true); return; }
     // 先退出（停核心、收托盘图标）再装：安装程序会结束还在运行的 Coopet
-    else if (m?.type === 'update-install') { if (updater?.hasUpdate()) { restartAfterUpdate = true; app.quit(); } return; }
+    else if (m?.type === 'update-install') { installUpdateNow(); return; }
     else if (m?.type === 'releases') { void shell.openExternal(RELEASES_URL); return; }
     refresh();
   });
@@ -169,8 +180,18 @@ function runApp() {
     quitting = true;
     log('正在退出：先停核心');
     void core.stop().finally(() => {
-      // 下载好的更新现在装（静默）；安装程序接手后这里不再等，10 秒后兜底退出
-      if (updater?.installOnQuit(restartAfterUpdate)) setTimeout(() => app.exit(0), 10_000);
+      // 下载好的更新现在装（静默），装完重新打开；安装程序接手后这里不再等，10 秒后兜底退出
+      if (updater?.hasUpdate()) {
+        const zh = state.language === 'zh' || state.language === 'zh-Hant';
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Coopet',
+            body: zh ? `正在安装更新 v${state.updateReady ?? ''}，完成后会自动打开。` : `Installing update v${state.updateReady ?? ''}; Coopet opens again when it is done.`,
+          }).show();
+        }
+        log(`退出时安装更新（${restartAfterUpdate ? '点了现在重启更新' : '直接退出'}），装完重新打开`);
+      }
+      if (updater?.installOnQuit(true)) setTimeout(() => app.exit(0), 10_000);
       else app.exit(0);
     });
   });
@@ -195,6 +216,7 @@ function runApp() {
       setLoginItem: (on) => { setLoginItem(on); },
       openLogs,
       restartCore: () => core.start(),
+      installUpdate: installUpdateNow,
       quit: () => app.quit(),
     });
     core.start();

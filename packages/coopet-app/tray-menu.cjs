@@ -11,6 +11,7 @@
  *   loginItem: boolean,
  *   loginItemAvailable: boolean,
  *   language: string,
+ *   updateReady?: string | null,
  * }} TrayState
  * @typedef {{
  *   openSettings: () => void,
@@ -19,6 +20,7 @@
  *   setLoginItem: (on: boolean) => void,
  *   openLogs: () => void,
  *   restartCore: () => void,
+ *   installUpdate?: () => void,
  *   quit: () => void,
  * }} TrayActions
  * @typedef {{ label?: string, type?: 'normal' | 'separator' | 'checkbox', enabled?: boolean, checked?: boolean, click?: () => void }} MenuItem
@@ -45,6 +47,7 @@ const TEXT = {
     loginItemLater: '开机自启（打包后可用）',
     logs: '打开日志文件夹',
     restartCore: '重新启动核心',
+    installUpdate: (/** @type {string} */ v) => `重启并更新到 v${v}`,
     quit: '退出 Coopet',
   },
   en: {
@@ -66,6 +69,7 @@ const TEXT = {
     loginItemLater: 'Start at login (in the packaged app)',
     logs: 'Open the log folder',
     restartCore: 'Restart the core',
+    installUpdate: (/** @type {string} */ v) => `Restart and update to v${v}`,
     quit: 'Quit Coopet',
   },
 };
@@ -113,7 +117,10 @@ function trayTemplate(s, a) {
     { label: t.logs, click: a.openLogs },
   ];
   if (s.core === 'failed') items.push({ label: t.restartCore, click: a.restartCore });
-  items.push({ type: 'separator' }, { label: t.quit, click: a.quit });
+  items.push({ type: 'separator' });
+  // 下载好了更新（自动更新，updater.cjs）：和桌宠气泡里的「现在重启更新」一样
+  if (s.updateReady && a.installUpdate) items.push({ label: t.installUpdate(s.updateReady), click: a.installUpdate });
+  items.push({ label: t.quit, click: a.quit });
   return items;
 }
 
