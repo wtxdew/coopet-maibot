@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { CoreHost, RESTART_DELAY_MS, STOP_TIMEOUT_MS, REQUEST_TIMEOUT_MS } = require('../core-host.cjs');
+const { CoreHost, RESTART_DELAY_MS, STOP_TIMEOUT_MS } = require('../core-host.cjs');
 
 /** 假的子进程：可以手动让它发消息、退出。 */
 class FakeChild extends EventEmitter {
@@ -120,33 +120,5 @@ describe('CoreHost', () => {
     h.advance(RESTART_DELAY_MS);
     expect(h.children).toHaveLength(1);
     expect(h.host.state).toBe('stopped');
-  });
-
-  it('matches responses to requests and keeps them out of message events', async () => {
-    const h = harness();
-    const events: unknown[] = [];
-    h.host.on('message', (m: unknown) => events.push(m));
-    h.host.start();
-    const a = h.host.request('settings.get', { x: 1 });
-    const b = h.host.request('settings.save', {});
-    const [ra, rb] = h.children[0].sent as Array<{ id: number }>;
-    expect(h.children[0].sent[0]).toEqual({ type: 'request', id: ra.id, method: 'settings.get', params: { x: 1 } });
-    h.children[0].emit('message', { type: 'response', id: rb.id, ok: false, error: '不合格' });
-    h.children[0].emit('message', { type: 'response', id: ra.id, ok: true, result: { ok: 1 } });
-    await expect(a).resolves.toEqual({ ok: 1 });
-    await expect(b).rejects.toThrow('不合格');
-    expect(events).toEqual([]);
-  });
-
-  it('fails requests on timeout, when not running, and when the core exits', async () => {
-    const h = harness();
-    await expect(h.host.request('x')).rejects.toThrow(/没在运行/);
-    h.host.start();
-    const late = h.host.request('slow');
-    h.advance(REQUEST_TIMEOUT_MS);
-    await expect(late).rejects.toThrow(/没有回复/);
-    const cut = h.host.request('cut');
-    h.children[0].emit('exit', 1, null);
-    await expect(cut).rejects.toThrow(/已退出/);
   });
 });

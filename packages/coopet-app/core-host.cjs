@@ -8,7 +8,6 @@
  * - 停止：先发 SIGTERM（核心会停 link、关桌宠窗口、写回配置），5 秒没退就 SIGKILL。
  *
  * 事件：`message`（核心发来的消息）、`state`（'starting' | 'running' | 'restarting' | 'failed' | 'stopped'）。
- * request(method, params)：发请求、等核心回复（配置窗用），超时或核心退出时失败。
  */
 const { fork: nodeFork } = require('node:child_process');
 const { EventEmitter } = require('node:events');
@@ -17,7 +16,6 @@ const RESTART_DELAY_MS = 3000;
 const CRASH_WINDOW_MS = 5 * 60_000;
 const MAX_CRASHES = 5;
 const STOP_TIMEOUT_MS = 5000;
-const REQUEST_TIMEOUT_MS = 20_000;
 
 /**
  * @typedef {'stopped' | 'starting' | 'running' | 'restarting' | 'failed'} CoreState
@@ -55,40 +53,6 @@ class CoreHost extends EventEmitter {
     /** @type {unknown} */
     this.restartTimer = null;
     this.stopping = false;
-    this.nextRequestId = 1;
-    /** @type {Map<number, { resolve: (v: unknown) => void, reject: (e: Error) => void, timer: unknown }>} */
-    this.pending = new Map();
-  }
-
-  /**
-   * 发请求给核心，等它回复。
-   * @param {string} method
-   * @param {unknown} [params]
-   * @returns {Promise<unknown>}
-   */
-  request(method, params) {
-    const id = this.nextRequestId++;
-    return new Promise((resolve, reject) => {
-      const timer = this._setTimeout(() => {
-        this.pending.delete(id);
-        reject(new Error(`核心 ${REQUEST_TIMEOUT_MS / 1000} 秒内没有回复 ${method}`));
-      }, REQUEST_TIMEOUT_MS);
-      this.pending.set(id, { resolve, reject, timer });
-      if (!this.send({ type: 'request', id, method, params })) {
-        this._clearTimeout(timer);
-        this.pending.delete(id);
-        reject(new Error('核心没在运行'));
-      }
-    });
-  }
-
-  /** @param {string} reason */
-  _failPending(reason) {
-    for (const [id, p] of this.pending) {
-      this._clearTimeout(p.timer);
-      p.reject(new Error(reason));
-      this.pending.delete(id);
-    }
   }
 
   /** 启动核心；已经在运行时什么也不做。放弃重启（failed）后再调用会重新开始计数。 */
@@ -148,16 +112,6 @@ class CoreHost extends EventEmitter {
     this.child = child;
     child.on('message', (message) => {
       const m = /** @type {any} */ (message);
-      if (m && m.type === 'response' && typeof m.id === 'number') {
-        const p = this.pending.get(m.id);
-        if (p) {
-          this.pending.delete(m.id);
-          this._clearTimeout(p.timer);
-          if (m.ok) p.resolve(m.result);
-          else p.reject(new Error(String(m.error)));
-        }
-        return;
-      }
       if (m && m.type === 'ready') this._setState('running');
       this.emit('message', message);
     });
@@ -173,7 +127,6 @@ class CoreHost extends EventEmitter {
   _onExit(child, code, signal) {
     if (this.child !== child) return;
     this.child = null;
-    this._failPending('核心已退出');
     if (this.stopping) {
       this._log(`核心已退出（${signal ?? code}）`);
       this._setState('stopped');
@@ -202,4 +155,4 @@ class CoreHost extends EventEmitter {
   }
 }
 
-module.exports = { CoreHost, RESTART_DELAY_MS, CRASH_WINDOW_MS, MAX_CRASHES, STOP_TIMEOUT_MS, REQUEST_TIMEOUT_MS };
+module.exports = { CoreHost, RESTART_DELAY_MS, CRASH_WINDOW_MS, MAX_CRASHES, STOP_TIMEOUT_MS };

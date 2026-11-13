@@ -12,5 +12,5 @@
     "types": ["node"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["*.cjs", "settings/*.cjs", "settings/*.js"]
+  "include": ["*.cjs"]
 }

@@ -132,7 +132,6 @@ function runApp() {
   void app.whenReady().then(() => {
     if (process.platform === 'darwin') app.dock?.hide();
     if (state.loginItemAvailable) state.loginItem = app.getLoginItemSettings().openAtLogin;
-    // 旧的手写设置页（settings-window.cjs）第二期删除，现在已不再打开
     settings = createConsoleWindow({
       corePort: () => state.webPort,
       petOrigin: () => state.petOrigin,
