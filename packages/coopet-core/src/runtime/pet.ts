@@ -60,7 +60,7 @@ export interface PetHandle {
   webUi(language: Language): WorldWebUiDecl;
   /** 桌宠现在的工具名（World 列表里显示） */
   toolNames(): string[];
-  /** 桌宠页面的地址，例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
+  /** 桌宠页面的地址（实际绑上的端口，配置的被占时会往后换），例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
   readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
   stop(): Promise<void>;
@@ -94,7 +94,9 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
   });
 
   await world.start(host);
-  log.info(`桌宠已启动：http://127.0.0.1:${opts.cfg.port}/`);
+  // 配置的端口被占时页面服务会换到后面的端口：地址按实际绑上的算，外壳据此放行设置窗里的桌宠页面
+  const origin = new URL(world.petUrl).origin;
+  log.info(`桌宠已启动：${origin}/`);
 
   // 显示、隐藏没有单独的公开方法，走桌宠面板的公开调用入口（Coopanion 的设置窗也走这里）
   const panel = async (method: string): Promise<void> => {
@@ -133,7 +135,7 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     refresh: () => world.refresh(),
     webUi: (language) => world.webUi(language),
     toolNames: () => world.tools().map((t) => t.name),
-    origin: `http://127.0.0.1:${opts.cfg.port}`,
+    origin,
     async stop() {
       if (stopped) return;
       stopped = true;

@@ -45,4 +45,31 @@ describe('startPet (no window)', () => {
       flush();
     }
   });
+
+  // 配置的端口被别的程序（例如同时开着的 Coopanion）占着：页面服务换到下一个端口，origin 要跟着实际端口走，
+  // 否则外壳按配置端口放行，设置窗里的装扮页被拒（403，空白）
+  it('reports the port it actually bound when the configured one is taken', async () => {
+    const dirs = coopetDirs(mkdtempSync(join(tmpdir(), 'coopet-pet-')));
+    const { cfg, persistPet, flush } = loadConfig(dirs);
+    cfg.pet.window.enabled = false;
+    const taken = createServer();
+    await new Promise<void>((done, fail) => { taken.once('error', fail); taken.listen(0, '127.0.0.1', () => done()); });
+    cfg.pet.port = (taken.address() as { port: number }).port;
+    try {
+      const pet = await startPet({
+        cfg: cfg.pet, persist: persistPet, dirs, store: new MemoryEventStore(),
+        log: consoleLogger('test', 'warn'), onEvent: () => {}, botName: () => '麦麦', language: () => 'zh',
+      });
+      try {
+        const port = Number(new URL(pet.origin).port);
+        expect(port).toBeGreaterThan(cfg.pet.port);
+        expect(pet.origin).toBe(`http://127.0.0.1:${port}`);
+      } finally {
+        await pet.stop();
+      }
+    } finally {
+      await new Promise<void>((done) => taken.close(() => done()));
+      flush();
+    }
+  });
 });
