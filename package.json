@@ -15,6 +15,7 @@
     "build:pet": "cd packages/cortico-world-desktop-pet && node scripts/build-webui.mjs",
     "dev": "corepack pnpm run build:pet && cd packages/coopet-core && tsx src/main.ts",
     "build:console": "node scripts/build-console.mjs",
+    "typecheck:console": "tsc -p tsconfig.console.json",
     "app": "corepack pnpm run build:pet && corepack pnpm run build:console && electron packages/coopet-app",
     "test:core": "cd packages/coopet-core && vitest run",
     "typecheck:core": "cd packages/coopet-core && tsc --noEmit",

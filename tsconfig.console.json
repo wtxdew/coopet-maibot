@@ -1,0 +1,19 @@
+{
+  // 设置窗（console/）的类型检查，照 Coopanion 的 tsconfig.web.json。只检查，构建由 scripts/build-console.mjs 做。
+  // `cortico/*` 指向钉住的子模块；设置窗从它只取类型（core/language.ts 除外）。
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "paths": { "cortico/*": ["./vendor/cortico/src/*"] }
+  },
+  "files": ["console/coopet/index.ts", "console/env.d.ts", "console/features/pet-ui.d.ts"]
+}
