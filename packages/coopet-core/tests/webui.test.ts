@@ -26,6 +26,7 @@ async function setup() {
   const streams: WorldStreamSocket[] = [];
   const decl: WorldWebUiDecl = {
     label: '桌宠',
+    lamps: [{ label: '桌宠窗口', state: 'online' }, { label: '语音识别', state: 'offline' }],
     panels: [{ id: 'pet', title: '桌宠' }, { id: 'voice', title: '语音输入' }, { id: 'chat', title: '对话' }],
     config: desktopPetConfigGroups('zh'),
     promptDocs: [{ key: 'worlds.desktop-pet.envPrompt', title: '环境', description: '给模型看的', path: join(root, 'env.md') }],
@@ -177,6 +178,7 @@ describe('webui surface', () => {
     const page = manifest.providers.find((p: { id: string }) => p.id === 'world:desktop-pet');
     expect(page).toMatchObject({ kind: 'world', label: '桌宠', availability: 'active' });
     expect(page.prompts).toBeUndefined();
+    expect(page.lamps).toEqual([{ label: '桌宠窗口', state: 'online' }]);
     expect(page.panels.map((p: { id: string }) => p.id)).toEqual(['pet', 'chat']);
     expect(JSON.stringify(page)).toContain('/assets/desktop-pet/webui.js');
     const js = await fetch(`${t.base}/assets/desktop-pet/webui.js`);

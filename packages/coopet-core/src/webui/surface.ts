@@ -97,8 +97,17 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
     return values;
   };
 
-  const worldInfo = (language: Language): WebUiWorldInfo => {
+  /**
+   * 桌宠的页面声明，只留桌宠窗口那盏状态灯：灯没有 id，桌宠按固定顺序给（窗口、语音识别、开了电脑操作时还有一盏），
+   * 语音识别和电脑操作都没接，不显示。
+   */
+  const petDecl = (language: Language) => {
     const decl = d.pet.webUi(language);
+    return decl.lamps?.length ? { ...decl, lamps: decl.lamps.slice(0, 1) } : decl;
+  };
+
+  const worldInfo = (language: Language): WebUiWorldInfo => {
+    const decl = petDecl(language);
     return {
       id: PET_WORLD_ID,
       status: 'active',
@@ -120,7 +129,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       const info = worldInfo(language);
       if (info.status !== 'active') return null;
       // ioPageContribution 只用到 World 的 webUi()
-      const world = { webUi: (lang?: Language) => d.pet.webUi(lang ?? language) } as unknown as World;
+      const world = { webUi: (lang?: Language) => petDecl(lang ?? language) } as unknown as World;
       const page = ioPageContribution(PET_WORLD_ID, info.label ?? PET_WORLD_ID, { ...info, prefixDrifted: false }, world, language);
       delete page.promptDocs;
       if (page.panels) page.panels = page.panels.filter((panel) => !HIDDEN_PANELS.has(panel.id));
