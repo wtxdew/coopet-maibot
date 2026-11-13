@@ -10,7 +10,8 @@
  * 打包后检查目标架构的原生包在不在，缺了就失败。
  *
  * 运行：`corepack pnpm run pack`。输出在 dist/：macOS 是 Coopet-<版本>-mac-<架构>.dmg 和 .zip，Windows 是 Coopet-Setup-<版本>.exe。
- * Windows 版要在 Windows 上运行这个脚本。`PACK_ARCH`（x64 或 arm64）可以给 macOS 构建另一种架构。
+ * `PACK_ARCH`（x64 或 arm64）构建另一种架构；`PACK_PLATFORM=win32` 在 macOS 上交叉构建 Windows 安装包：
+ * npm 按 `--os=win32` 装 Windows 的预编译原生包，electron-builder 在 macOS 上就能打 NSIS 安装包（不签名时不需要 Wine）。
  */
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
@@ -19,10 +20,15 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const OUT = join(ROOT, 'build', 'app');
-const ARCH = process.env.PACK_ARCH || process.arch;
-const WIN = process.platform === 'win32';
+/** 目标平台：默认是本机；PACK_PLATFORM=win32 交叉构建 Windows 版 */
+const PLATFORM = process.env.PACK_PLATFORM || process.platform;
+const ARCH = process.env.PACK_ARCH || (PLATFORM === process.platform ? process.arch : 'x64');
+/** 本机是不是 Windows（决定怎么启动命令） */
+const HOST_WIN = process.platform === 'win32';
+/** 目标是不是 Windows */
+const WIN = PLATFORM === 'win32';
 const run = (cmd, args, cwd) => {
-  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: WIN });
+  const r = spawnSync(cmd, args, { cwd, stdio: 'inherit', shell: HOST_WIN });
   if (r.status !== 0) process.exit(r.status ?? 1);
 };
 
@@ -71,7 +77,10 @@ writeFileSync(join(OUT, 'package.json'), JSON.stringify({
   name: rootPkg.name, productName: 'Coopet', version: rootPkg.version, description: rootPkg.description,
   license: rootPkg.license, author: 'Coopet contributors', main: 'packages/coopet-app/main.cjs', dependencies: DEPS,
 }, null, 2));
-run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--loglevel=error', `--os=${process.platform}`, `--cpu=${ARCH}`], OUT);
+// 交叉构建时不跑安装脚本：原生包用的是目标平台的预编译独立包（@koromix/koffi-win32-x64 等），
+// 而 koffi 的安装脚本在本机找不到本机的预编译版，会退回去从源码编译（编出来也是本机的，没用）
+const CROSS = PLATFORM !== process.platform || ARCH !== process.arch;
+run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--loglevel=error', `--os=${PLATFORM}`, `--cpu=${ARCH}`, ...(CROSS ? ['--ignore-scripts'] : [])], OUT);
 
 const manifest = JSON.parse(readFileSync(join(OUT, 'package.json'), 'utf8'));
 for (const name of WORKSPACE) {
@@ -83,18 +92,18 @@ for (const name of WORKSPACE) {
 writeFileSync(join(OUT, 'package.json'), JSON.stringify(manifest, null, 2));
 console.log(`应用目录拼好了：${relative(ROOT, OUT)}`);
 
-const target = process.platform === 'darwin' ? '--mac' : WIN ? '--win' : '--linux';
-run(join(ROOT, 'node_modules', '.bin', WIN ? 'electron-builder.cmd' : 'electron-builder'),
+const target = PLATFORM === 'darwin' ? '--mac' : WIN ? '--win' : '--linux';
+run(join(ROOT, 'node_modules', '.bin', HOST_WIN ? 'electron-builder.cmd' : 'electron-builder'),
   [target, `--${ARCH}`, '--publish', 'never', '--projectDir', OUT, '--config', join(ROOT, 'electron-builder.yml'), ...process.argv.slice(2)], ROOT);
 
 /** 核心要加载的原生包，按目标平台和架构：esbuild（tsx）、koffi（电脑操作）、sherpa-onnx（语音识别） */
-const NATIVE = [`@esbuild/${process.platform}-${ARCH}`, `@koromix/koffi-${process.platform}-${ARCH}`, `sherpa-onnx-${WIN ? 'win' : process.platform}-${ARCH}`];
-const packed = process.platform === 'darwin'
+const NATIVE = [`@esbuild/${PLATFORM}-${ARCH}`, `@koromix/koffi-${PLATFORM}-${ARCH}`, `sherpa-onnx-${WIN ? 'win' : PLATFORM}-${ARCH}`];
+const packed = PLATFORM === 'darwin'
   ? join(ROOT, 'dist', ARCH === 'x64' ? 'mac' : `mac-${ARCH}`, 'Coopet.app', 'Contents', 'Resources', 'app')
   : join(ROOT, 'dist', `${WIN ? 'win' : 'linux'}${ARCH === 'x64' ? '' : `-${ARCH}`}-unpacked`, 'resources', 'app');
 const missing = NATIVE.filter((name) => !existsSync(join(packed, 'node_modules', name, 'package.json')));
 if (missing.length) {
-  console.error(`打包出的应用缺少 ${process.platform}-${ARCH} 的原生包：${missing.join('、')}（${relative(ROOT, packed)}）`);
+  console.error(`打包出的应用缺少 ${PLATFORM}-${ARCH} 的原生包：${missing.join('、')}（${relative(ROOT, packed)}）`);
   process.exit(1);
 }
 console.log(`原生包都在：${NATIVE.join('、')}`);
