@@ -78,7 +78,7 @@
 
 ## 阶段 4：World 运行时与本地 Agent
 
-- [ ] `runtime/`：自己的 World 契约（工具 + 事件 + 环境说明 + 配置段）
+- [x] `runtime/`：World 契约直接用 Cortico 的（WorldDefinition / World / WorldHost），`runtime/worlds.ts` 托管扩展 World（2026-11-13，随 World 扩展完成）
 - [ ] 评估 Agent 是否直接用 Cortico Core 跑（它本来就是 LLM + 工具循环），还是自己写循环；和你讨论后定
 - [ ] `agent/`：LLM 工具循环（中断、步数上限、超时、日志）
 - [ ] 模型来源：插件 LLM 代理（`ctx.llm.generate_with_tools`）和直连 API 两种
@@ -105,7 +105,7 @@
   才往 `extra_prompt` 追加标签说明和可用词表；只有 coopet 会话每次回复多一百来个 token
 - [ ] 主动发言、提醒的展示
 - [ ] 戳、摸、甩的信息传给 MaiBot：参考 Coopanion，但不要那么频繁（比如合并、限频、只传有意义的互动），先讨论方案
-- [ ] MaiBot 回复文字的转义：桌宠脚本没有转义机制，回复里的 `【…】` 和短的 `<…>`、`＜…＞` 会被当成动作标记吃掉；
+- [x] MaiBot 回复文字的转义（2026-11-13，expr/escape.ts，按桌宠脚本的规则只换会被吃掉的写法）：桌宠脚本没有转义机制，回复里的 `【…】` 和短的 `<…>`、`＜…＞` 会被当成动作标记吃掉；
   显示前换成不会被解析的相似字符（如 `〖〗`、`‹`、`﹤`）
 
 ## 阶段 7（可选）：作为 MaiBot 的外接 sub-agent（ACP）
