@@ -31,6 +31,15 @@ describe('connectSupervisor', () => {
     expect(proc.sent).toHaveLength(1);
   });
 
+  it('passes the updater steps on (the update bubbles depend on it)', () => {
+    const proc = new FakeProc();
+    const got: FromShell[] = [];
+    connectSupervisor(proc)!.onMessage((m) => got.push(m));
+    proc.emit('message', { type: 'update', step: { phase: 'ready', version: '0.1.4' } });
+    proc.emit('message', { type: 'update', step: null });
+    expect(got).toEqual([{ type: 'update', step: { phase: 'ready', version: '0.1.4' } }, { type: 'update', step: null }]);
+  });
+
   it('reports a disconnect', () => {
     const proc = new FakeProc();
     let gone = false;

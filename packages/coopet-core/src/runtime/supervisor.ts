@@ -45,7 +45,8 @@ export interface IpcProcess {
   on(event: 'disconnect', cb: () => void): unknown;
 }
 
-const FROM_SHELL = new Set(['show-pet', 'hide-pet', 'toggle-pet', 'shutdown']);
+/** 收得下的外壳消息。写成以 FromShell 的 type 为键的表：FromShell 加了新类型而这里漏写，类型检查就会报错 */
+const FROM_SHELL: Readonly<Record<FromShell['type'], true>> = { 'show-pet': true, 'hide-pet': true, 'toggle-pet': true, shutdown: true, update: true };
 
 export function connectSupervisor(proc: IpcProcess = process as unknown as IpcProcess): Supervisor | null {
   if (typeof proc.send !== 'function') return null;
@@ -57,7 +58,7 @@ export function connectSupervisor(proc: IpcProcess = process as unknown as IpcPr
     onMessage(cb) {
       proc.on('message', (raw) => {
         const type = (raw as { type?: unknown } | null)?.type;
-        if (typeof type === 'string' && FROM_SHELL.has(type)) cb(raw as FromShell);
+        if (typeof type === 'string' && Object.hasOwn(FROM_SHELL, type)) cb(raw as FromShell);
       });
     },
     onDisconnect(cb) {
