@@ -6,6 +6,10 @@
  *   CORTICO_DESKTOP_PET_HOST 启动；调用桌宠包自带的 runPetHost，关掉它自带的菜单栏图标（托盘由 app 模式负责）。
  * - 其他：app 模式。只运行一个实例（再打开时让桌宠重新显示）；macOS 上不占 Dock；
  *   启动核心子进程（core-host.cjs），建托盘（tray.cjs）；退出时先停核心，再退出。
+ *
+ * 自动更新（updater.cjs，照 Coopanion）：只有能自己装更新的版本（Windows 安装版）运行更新器。
+ * 核心告诉开关（auto-update，存在 config.json），更新器的每一步告诉核心（桌宠气泡）和设置窗（标题栏）；
+ * 气泡里点了「现在重启更新」（update-install）就退出并静默安装、装完重新打开；没点的话退出时安装、不重新打开。
  */
 const { app, shell } = require('electron');
 const { mkdirSync } = require('node:fs');
@@ -45,6 +49,9 @@ if (EXT >= 0) {
 
 function runApp() {
   const { CoreHost } = require('./core-host.cjs');
+  const { RELEASES_URL, canUpdate, startUpdater } = require('./updater.cjs');
+  /** 这个版本能不能自己装更新（Windows 安装版） */
+  const SELF_UPDATE = canUpdate();
   const { createTray } = require('./tray.cjs');
   const { createConsoleWindow } = require('./console-window.cjs');
   /** @param {string} msg */
@@ -57,7 +64,7 @@ function runApp() {
     cwd: CORE_ROOT,
     execPath: process.execPath,
     preload: [CORTICO_RESOLVER],
-    env: { ...process.env, CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost) },
+    env: { ...process.env, CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost), COOPET_SELF_UPDATE: SELF_UPDATE ? '1' : '0' },
     log: (msg) => console.log(`[core-host] ${msg}`),
   });
 
@@ -90,6 +97,31 @@ function runApp() {
     mkdirSync(LOGS_DIR, { recursive: true });
     void shell.openPath(LOGS_DIR);
   };
+  /** @type {{ setEnabled: (on: boolean) => void, hasUpdate: () => boolean, installOnQuit: (runAfter?: boolean) => boolean } | null} */
+  let updater = null;
+  /** 更新器的上一步；核心重启后再告诉它一次 */
+  /** @type {{ phase: string, version: string, reason?: string } | null} */
+  let updateStep = null;
+  /** 设置窗标题栏显示的部分 */
+  const updateLine = () => updateStep && { phase: updateStep.phase, version: updateStep.version };
+  /** 气泡里点了「现在重启更新」：装完重新打开 */
+  let restartAfterUpdate = false;
+  /** @param {boolean} enabled */
+  const setAutoUpdate = (enabled) => {
+    if (!SELF_UPDATE) return;
+    if (updater) { updater.setEnabled(enabled); return; }
+    updater = startUpdater({
+      logDir: LOGS_DIR,
+      enabled,
+      tell: (/** @type {any} */ step) => {
+        updateStep = step;
+        if (step) log(`更新：${step.phase} ${step.version}`);
+        core.send({ type: 'update', step });
+        settings?.updateStep(updateLine());
+      },
+    });
+  };
+
   /** 装扮：打开设置窗的装扮页（和 Coopanion 一样，不单独开窗口） */
   const openDress = () => settings?.open('#/dress');
 
@@ -107,6 +139,7 @@ function runApp() {
       state.webPort = typeof m.webPort === 'number' ? m.webPort : null;
       if (typeof m.language === 'string') state.language = m.language;
       if (restarted) settings?.coreRestarted();
+      if (updateStep) core.send({ type: 'update', step: updateStep });
     }
     else if (m?.type === 'language' && typeof m.language === 'string') {
       // 托盘菜单下次打开时用新语言；设置窗重新加载
@@ -117,6 +150,10 @@ function runApp() {
     else if (m?.type === 'pet') state.onDesktop = !!m.onDesktop;
     else if (m?.type === 'quit') { app.quit(); return; }
     else if (m?.type === 'open-settings') { settings?.open(typeof m.route === 'string' && m.route.startsWith('#/') ? m.route : ''); return; }
+    else if (m?.type === 'auto-update') { setAutoUpdate(m.enabled === true); return; }
+    // 先退出（停核心、收托盘图标）再装：安装程序会结束还在运行的 Coopet
+    else if (m?.type === 'update-install') { if (updater?.hasUpdate()) { restartAfterUpdate = true; app.quit(); } return; }
+    else if (m?.type === 'releases') { void shell.openExternal(RELEASES_URL); return; }
     refresh();
   });
 
@@ -131,7 +168,11 @@ function runApp() {
     event.preventDefault();
     quitting = true;
     log('正在退出：先停核心');
-    void core.stop().finally(() => app.exit(0));
+    void core.stop().finally(() => {
+      // 下载好的更新现在装（静默）；安装程序接手后这里不再等，10 秒后兜底退出
+      if (updater?.installOnQuit(restartAfterUpdate)) setTimeout(() => app.exit(0), 10_000);
+      else app.exit(0);
+    });
   });
 
   void app.whenReady().then(() => {
@@ -142,6 +183,7 @@ function runApp() {
       petOrigin: () => state.petOrigin,
       language: () => state.language,
       loginItem: { available: () => state.loginItemAvailable, get: () => state.loginItem, set: (on) => { setLoginItem(on); } },
+      update: { auto: () => SELF_UPDATE, step: updateLine },
       sizeFile: join(ELECTRON_DATA_DIR, 'console-size.json'),
       log,
     });

@@ -3,7 +3,7 @@ import { join, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { decide, windowFilePath, isLocal } = require('../console-routes.cjs');
+const { decide, windowFilePath, isLocal, mayRequest, RELEASE_CHECK } = require('../console-routes.cjs');
 
 const CORE = 'http://127.0.0.1:50123';
 const PET = 'http://127.0.0.1:7797';
@@ -61,5 +61,12 @@ describe('isLocal', () => {
     expect(isLocal('ws://localhost:5/ws')).toBe(true);
     expect(isLocal('https://api.github.com/x')).toBe(false);
     expect(isLocal('http://127.0.0.1.evil.com/')).toBe(false);
+  });
+
+  it('lets the release check out and nothing else', () => {
+    expect(mayRequest(RELEASE_CHECK)).toBe(true);
+    expect(mayRequest('http://127.0.0.1:5/x')).toBe(true);
+    expect(mayRequest(`${RELEASE_CHECK}?x=1`)).toBe(false);
+    expect(mayRequest('https://api.github.com/repos/other/repo/releases/latest')).toBe(false);
   });
 });

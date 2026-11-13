@@ -6,6 +6,8 @@
  *   这里在每次加载前向外壳要当前语言写进去。改语言后外壳重新加载窗口。
  * - window.coopanionWindow（console/titlebar.ts 读）：平台（标题栏按它给红绿灯留位置）、
  *   配色同步（窗口底色跟着页面配色）、开机自启（只在能设置时提供，「习惯」页据此显示那一行）。
+ * - window.coopanionUpdate（console/coopet/release.ts 读）：只在能自己更新的版本里有，
+ *   给更新器的上一步和之后的每一步，标题栏的版本号旁边显示（正在下载、已就绪、下载失败）。
  *
  * IPC 通道在 console-window.cjs。
  */
@@ -22,6 +24,17 @@ contextBridge.exposeInMainWorld('coopanionWindow', {
     },
   } : {}),
 });
+
+if (ipcRenderer.sendSync('console:update').auto) {
+  contextBridge.exposeInMainWorld('coopanionUpdate', {
+    step: () => ipcRenderer.sendSync('console:update').step,
+    onStep: (/** @type {(step: unknown) => void} */ listener) => {
+      const handler = (/** @type {unknown} */ _e, /** @type {unknown} */ step) => listener(step);
+      ipcRenderer.on('console:update', handler);
+      return () => ipcRenderer.removeListener('console:update', handler);
+    },
+  });
+}
 
 try {
   localStorage.setItem('cortico.console.language', ipcRenderer.sendSync('console:language'));

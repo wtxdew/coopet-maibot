@@ -6,19 +6,21 @@
  *   设置窗的文件由外壳提供，网址却在核心地址下（`http://127.0.0.1:<核心端口>/coopet/`），
  *   这样页面和核心接口同源，核心的同源检查照常起作用。
  * - 转发用 Node 的 http，原样带上方法、头和正文，回复边到边传；重定向原样返回，不跟随。
- * - 会话里所有请求（包括 WebSocket）只许连本机（keepLocal）。
+ * - 会话里所有请求（包括 WebSocket）只许连本机；唯一的例外是标题栏查新版本（console-routes.cjs 的 RELEASE_CHECK）。
  * - 窗口只停留在核心地址上；别的链接用系统浏览器打开；框架（桌宠页面）只许本机、且不许是核心地址。
  * - 窗口外观和大小见 console-chrome.cjs。preload（console-preload.cjs）经下面三个 IPC 通道向这里要东西，
  *   只接受这个窗口自己发来的：
  *   `console:language`（同步，界面语言）、`console:theme`（页面配色，窗口底色跟着换）、
- *   `console:login-item`（同步；不带参数是读开机自启，带布尔值是设置；不能设置时返回 null）。
+ *   `console:login-item`（同步；不带参数是读开机自启，带布尔值是设置；不能设置时返回 null）、
+ *   `console:update`（同步；这个版本能不能自己更新，以及更新器的上一步）。更新器的后续步骤由 `updateStep` 推给窗口，
+ *   同一个通道名。
  */
 const { BrowserWindow, ipcMain, screen, session, shell } = require('electron');
 const http = require('node:http');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { Readable } = require('node:stream');
-const { decide, windowFilePath, contentType, isLocal, WINDOW_PREFIX, WINDOW_CSP } = require('./console-routes.cjs');
+const { decide, windowFilePath, contentType, isLocal, mayRequest, WINDOW_PREFIX, WINDOW_CSP } = require('./console-routes.cjs');
 const { applyTheme, chromeOptions, readSize, saveSize } = require('./console-chrome.cjs');
 
 const CONSOLE_PARTITION = 'persist:coopet-console';
@@ -30,6 +32,7 @@ const WINDOW_DIR = join(__dirname, 'build', 'console');
  *   petOrigin: () => string | null,
  *   language: () => string,
  *   loginItem: { available: () => boolean, get: () => boolean, set: (on: boolean) => void },
+ *   update: { auto: () => boolean, step: () => unknown },
  *   sizeFile: string,
  *   log: (msg: string) => void,
  * }} deps
@@ -51,6 +54,7 @@ function createConsoleWindow(deps) {
     if (typeof on === 'boolean') { deps.loginItem.set(on); e.returnValue = deps.loginItem.get(); return; }
     e.returnValue = deps.loginItem.get();
   });
+  ipcMain.on('console:update', (e) => { e.returnValue = fromWindow(e) ? { auto: deps.update.auto(), step: deps.update.step() } : { auto: false, step: null }; });
 
   /** @param {GlobalRequest} request */
   async function serve(request) {
@@ -74,7 +78,7 @@ function createConsoleWindow(deps) {
     sessionReady = true;
     ses.protocol.handle('http', serve);
     ses.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (details, answer) => {
-      answer({ cancel: !isLocal(details.url) });
+      answer({ cancel: !mayRequest(details.url) });
     });
   }
 
@@ -128,6 +132,10 @@ function createConsoleWindow(deps) {
       });
       w.on('closed', () => { win = null; });
       void win.loadURL(target);
+    },
+    /** 更新器的一步（或 null）：标题栏的更新状态跟着换 */
+    updateStep(/** @type {unknown} */ step) {
+      if (win && !win.isDestroyed()) win.webContents.send('console:update', step);
     },
     /** 界面语言改了：重新加载，页面按新语言显示（语言在页面加载时读） */
     reload() {

@@ -69,4 +69,11 @@ const contentType = (file) => WINDOW_TYPES[extname(file)] ?? 'application/octet-
 /** @param {string} url */
 const isLocal = (url) => /^(https?|wss?):\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?\//.test(url);
 
-module.exports = { decide, windowFilePath, contentType, isLocal, WINDOW_PREFIX, WINDOW_CSP };
+/** 标题栏查新版本用的地址（console/coopet/release.ts）：设置窗会话里唯一许出这台机器的请求 */
+const RELEASE_CHECK = 'https://api.github.com/repos/wtxdew/coopet-maibot/releases/latest';
+
+/** 设置窗会话里的请求许不许发：本机，或查新版本 */
+/** @param {string} url */
+const mayRequest = (url) => isLocal(url) || url === RELEASE_CHECK;
+
+module.exports = { decide, windowFilePath, contentType, isLocal, mayRequest, RELEASE_CHECK, WINDOW_PREFIX, WINDOW_CSP };
