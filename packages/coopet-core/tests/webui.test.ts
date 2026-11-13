@@ -12,12 +12,15 @@ import { MemoryEventStore } from '../src/runtime/event-store.ts';
 import { createSurface } from '../src/webui/surface.ts';
 import { petPackageDir, prepareWebAssets } from '../src/webui/assets.ts';
 import { openRunlog } from '../src/runtime/runlog.ts';
+import { WorldRuntime } from '../src/runtime/worlds.ts';
+import { SecretStore } from '../src/runtime/secrets.ts';
+import { extensionWorlds } from '../src/webui/extension-worlds.ts';
 
 const apps: WebApp[] = [];
 afterEach(async () => { for (const a of apps.splice(0)) await a.stop(); });
 
 /** 真实的 WebApp + 假桌宠（只有页面声明），返回地址和各个假对象。 */
-async function setup() {
+async function setup(extra: (ctx: { dirs: ReturnType<typeof coopetDirs>; loaded: ReturnType<typeof loadConfig>; store: MemoryEventStore }) => Partial<Parameters<typeof createSurface>[0]> = () => ({})) {
   const root = mkdtempSync(join(tmpdir(), 'coopet-webui-'));
   const dirs = coopetDirs(root);
   writeFileSync(dirs.configFile, '{}');
@@ -56,6 +59,7 @@ async function setup() {
     botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'closed', reason: 'auth', since: '2026-11-13T10:00:00.000Z' }), applyLink, webDistDir,
     runlog, version: '0.0.0', startedAt: '2026-11-13T09:00:00.000Z',
     conversation: () => ({ turns: 3, last: null, recent: { replied: 2, medianReplyMs: 2500, maxReplyMs: 4000 } }),
+    ...extra({ dirs, loaded, store }),
   }));
   apps.push(app);
   const port = await app.start(0);
@@ -272,5 +276,68 @@ describe('prepareWebAssets', () => {
     const root = mkdtempSync(join(tmpdir(), 'coopet-assets-'));
     const out = prepareWebAssets(root, consoleLogger('test', 'error'), join(root, 'no-pet'));
     expect(JSON.parse(readFileSync(join(out, 'asset-manifest.json'), 'utf8'))).toMatchObject({ providers: {} });
+  });
+});
+
+describe('extension worlds in the settings window', () => {
+  const demoGroup = {
+    id: 'world:demo', owner: 'world:demo' as const,
+    schema: { type: 'object' as const, title: 'Demo', properties: { 'worlds.demo.greeting': { type: 'string' as const, title: '问候', 'x-hot': true } } },
+  };
+  const demoDef = {
+    id: 'demo', label: 'Demo',
+    defaults: () => ({ enabled: true, greeting: 'hi' }),
+    create: () => ({
+      id: 'demo', tools: () => [], envPromptVars: () => ({}),
+      start: async () => {}, stop: async () => {},
+      webUi: () => ({ label: 'Demo', panels: [{ id: 'main', title: '主面板' }], config: [demoGroup], invoke: async () => 'pong' }),
+    }),
+  };
+
+  async function withDemo() {
+    let runtime!: WorldRuntime;
+    const t = await setup(({ dirs, loaded, store }) => {
+      runtime = new WorldRuntime({
+        definitions: [demoDef as never], config: loaded, secrets: new SecretStore(join(dirs.root, 'secrets.json'), {}),
+        dirs, store, log: consoleLogger('test', 'error'), botName: () => '麦麦', onEvent: () => {},
+      });
+      return {
+        extensions: extensionWorlds({
+          runtime, persistWorld: (id, patch) => loaded.persistWorld(id, patch),
+          records: [{ name: 'cortico-world-broken', spec: '1.0.0', version: '1.0.0', kind: 'world', webUiClient: false, loaded: false, reason: () => '导入失败' }],
+          extraConfig: () => [],
+        }),
+        activation: { set: (id, on) => runtime.set(id, on), restart: (id) => runtime.restart(id) },
+      };
+    });
+    await runtime.startAll();
+    return { ...t, runtime };
+  }
+
+  it('lists running, missing and the pet, with pages and config for the running ones', async () => {
+    const t = await withDemo();
+    const { worlds } = (await t.get('/api/worlds')).body as { worlds: Array<{ id: string; status: string; reason?: string }> };
+    expect(worlds.map((w) => [w.id, w.status])).toEqual([['desktop-pet', 'active'], ['demo', 'active'], ['cortico-world-broken', 'missing']]);
+    expect(worlds[2].reason).toBe('导入失败');
+    const manifest = (await t.get('/api/webui/manifest')).body;
+    expect(manifest.providers.map((p: { id: string }) => p.id)).toContain('world:demo');
+    const group = ((await t.get('/api/config')).body.groups as Array<{ group: { id: string }; values: Record<string, unknown> }>).find((g) => g.group.id === 'world:demo');
+    expect(group?.values).toEqual({ 'worlds.demo.greeting': 'hi' });
+    const r = await t.post('/api/config', { group: 'world:demo', values: { 'worlds.demo.greeting': 'yo' } });
+    expect(r.body.result).toBe('已保存');
+    expect(t.runtime.section('demo')).toMatchObject({ greeting: 'yo' });
+    expect((await t.post('/api/webui/providers/world%3Ademo/panels/main/ping', { args: [] })).status).toBe(200);
+  });
+
+  it('turns an extension world off and on from the list, but not the pet', async () => {
+    const t = await withDemo();
+    expect((await t.get('/api/capabilities')).body.capabilities.worldActivation).toBe(true);
+    const off = await t.post('/api/worlds/activation', { id: 'demo', enabled: false });
+    expect(off.status).toBe(200);
+    expect(t.runtime.instance('demo')).toBeNull();
+    expect(((await t.get('/api/worlds')).body.worlds as Array<{ id: string; status: string }>).find((w) => w.id === 'demo')?.status).toBe('inactive');
+    expect((await t.post('/api/worlds/activation', { id: 'demo', enabled: true })).status).toBe(200);
+    expect(t.runtime.instance('demo')).not.toBeNull();
+    expect((await t.post('/api/worlds/activation', { id: 'desktop-pet', enabled: false })).status).toBe(400);
   });
 });

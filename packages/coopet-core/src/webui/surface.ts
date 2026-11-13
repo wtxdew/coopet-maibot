@@ -15,7 +15,8 @@
  * - config 里还有 `coopet.log` 组（日志级别、写不写文本日志，见 log-settings.ts），「运行诊断 → 配置」用。
  * - debug（调试通道 /ws/debug）：只给本次运行 id（运行日志页默认读它）、新日志和新事件的推送；
  *   模型会话相关的几项给空（Coopet 没有模型会话）。
- * - worlds：`/api/worlds`，只有桌宠一个。
+ * - worlds：`/api/worlds`，桌宠加上扩展 World（extension-worlds.ts）；worldActivation 接 World 列表的启用开关
+ *   （桌宠不能停用）。扩展 World 的页面、配置组也一并交给 WebApp。
  * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
  *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
  *   去掉 promptDocs：那是给模型看的环境说明，MaiBot 不用，页面也就不显示「提示词」标签；
@@ -39,6 +40,7 @@ import type { LinkState } from '../link/types.ts';
 import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from './link-settings.ts';
 import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts';
 import type { ConversationStats } from '../conductor/stats.ts';
+import type { extensionWorlds } from './extension-worlds.ts';
 
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
@@ -73,6 +75,10 @@ export interface SurfaceDeps {
   applyLink(): Promise<void>;
   /** 面板脚本目录（assets.ts 准备的） */
   webDistDir: string;
+  /** 扩展 World（extension-worlds.ts）；没有时只有桌宠 */
+  extensions?: ReturnType<typeof extensionWorlds>;
+  /** 扩展 World 的启用、停用、重启（runtime/worlds.ts） */
+  activation?: { set(id: string, enabled: boolean): Promise<string>; restart(id: string): Promise<string> };
 }
 
 /** Coopanion「习惯」页读写界面语言的组和键、选项来源 */
@@ -184,6 +190,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
         { group: linkGroup(language), values: linkValues(d.cfg) },
         { group: logGroup(language), values: logValues(d.cfg) },
         ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
+        ...(d.extensions?.configGroups(language) ?? []),
       ],
       set: (groupId, values, language) => {
         if (groupId === LOG_GROUP) {
@@ -206,6 +213,11 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
           d.onLanguage?.(next);
           return baseLanguage(next) === 'zh' ? '已保存' : 'Saved';
         }
+        const fromExtension = d.extensions?.setConfig(groupId, values, language);
+        if (fromExtension != null) {
+          d.log.info(`设置窗改了 World 设置（${groupId}）：${Object.keys(values).join('、')}`);
+          return fromExtension;
+        }
         const group = petConfigGroups(language).find((g) => g.id === groupId);
         if (!group) throw new Error(`没有这个配置组：${groupId}`);
         const patch: Record<string, unknown> = {};
@@ -221,10 +233,26 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
         d.log.info(`设置窗改了桌宠设置：${Object.keys(values).join('、')}`);
         return hot ? '已保存' : '已保存，部分设置要重启 Coopet 后生效';
       },
-      options: (kind) => (kind === LANGUAGE_OPTIONS ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] })) : []),
+      options: (kind, language) => (kind === LANGUAGE_OPTIONS
+        ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] }))
+        : d.extensions?.options(kind, language) ?? []),
     },
-    worlds: (language) => [worldInfo(language)],
-    webUiPageSources: () => [petPage],
+    worlds: (language) => [worldInfo(language), ...(d.extensions?.infos(language) ?? [])],
+    webUiPageSources: () => [petPage, ...(d.extensions?.pages() ?? [])],
+    ...(d.activation ? {
+      worldActivation: {
+        set: async (id, enabled) => {
+          if (id === PET_WORLD_ID) throw new Error('桌宠是 Coopet 本身，不能停用');
+          const result = await d.activation!.set(id, enabled);
+          d.log.info(`设置窗${enabled ? '启用' : '停用'}了 World：${id}`);
+          return result;
+        },
+        restart: async (id) => {
+          if (id === PET_WORLD_ID) throw new Error('桌宠不能在这里重启，请重启 Coopet');
+          return d.activation!.restart(id);
+        },
+      },
+    } : {}),
   };
 }
 

@@ -109,6 +109,11 @@ export class WorldRuntime {
     return this.slots.get(id)?.instance ?? null;
   }
 
+  /** 这个 World 的活配置对象（worlds.<id>）；没有这个 World 时为 undefined */
+  section(id: string): WorldSection | undefined {
+    return this.slots.get(id)?.cfg;
+  }
+
   definition(id: string): WorldDefinition<WorldSection> | undefined {
     return this.slots.get(id)?.def;
   }
