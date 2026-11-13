@@ -19,10 +19,17 @@ const root = process.env.COOPET_DATA_DIR || join(homedir(), '.config', 'coopet')
 const dir = join(root, 'extensions');
 const [cmd, ...args] = process.argv.slice(2);
 
+/** 和本仓库用同一个 pnpm 版本：扩展目录在仓库外，不写 packageManager 的话 corepack 会去拿最新版 */
+const PACKAGE_MANAGER = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).packageManager;
+
 function ensureDir() {
   mkdirSync(dir, { recursive: true });
-  const pkg = join(dir, 'package.json');
-  if (!existsSync(pkg)) writeFileSync(pkg, `${JSON.stringify({ name: 'coopet-extensions', private: true, dependencies: {} }, null, 2)}\n`);
+  const file = join(dir, 'package.json');
+  const pkg = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { name: 'coopet-extensions', private: true, dependencies: {} };
+  if (pkg.packageManager !== PACKAGE_MANAGER) {
+    pkg.packageManager = PACKAGE_MANAGER;
+    writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
+  }
 }
 
 function pnpm(pnpmArgs) {
@@ -56,6 +63,7 @@ switch (cmd) {
   case 'remove': {
     if (!args.length) { console.error('用法：ext remove <包名>'); process.exit(2); }
     if (!existsSync(join(dir, 'package.json'))) { console.error(`还没有装扩展（${dir}）`); process.exit(1); }
+    ensureDir();
     const code = pnpm(['remove', ...args]);
     if (code === 0) console.log('\n卸好了。重启 Coopet 后生效；它在 config.json 里的设置保留。');
     process.exit(code);
