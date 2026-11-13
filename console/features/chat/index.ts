@@ -112,7 +112,8 @@ async function mount(ctx: PageContext): Promise<void> {
   trace.title = S.traceHint;
   trace.addEventListener('click', () => { requestMode('advanced'); ctx.router.navigate(['live']); }, { signal: ctx.signal });
   const note = ui.h('div', 'chat-note-line');
-  note.append(phaseEl, trace);
+  // Coopet 本地修改：不显示「控制台」（控制台页没有挂上）
+  note.append(phaseEl);
   const top = intro(ui, S.title, { desc: note });
 
   const scroll = ui.h('div', 'chat-scroll');

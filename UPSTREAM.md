@@ -15,6 +15,9 @@ Local changes to vendored code (each marked `Coopet 本地修改` in the source)
 
 - `console/features/home/index.ts`: the 「连接 MaiBot」 card (`console/coopet/connection-card.ts`) takes the 「连接模型」 card's place, and the pet preview's height follows it (Coopet's model lives in MaiBot).
 - `console/features/pet/index.ts` (习惯): no 称呼, Coo 的名字, 使用统计, 回应模式, 自主配置权限 rows, and no 电脑操作 or 其他 sections (MaiBot decides these, or they steer a model Coopet does not run).
-- `console/rail/index.ts`: the 「高级模式」 toggle is not shown (Coopet has no backend for the advanced pages).
+- `console/features/home/index.ts`: no 使用向导 (the guide is the embedding app's; Coopet has none).
+- `console/features/chat/index.ts`: no 控制台 link (that page is not mounted).
+- `console/rail/index.ts`: no 「高级模式」 toggle (Coopet has no backend for the advanced pages), no pause key or run state (Cortico's model session pause), and the name is read-only (it is MaiBot's bot name).
+- `console/advanced/features/worlds/index.ts`: no uninstall key without the extension surface (Coopet's World is built in).
 
 Coopet's own code next to vendored code: `console/coopet/` (the settings window entry, the connection card).

@@ -649,7 +649,8 @@ export function mountWorlds(ctx: FeatureContext): void {
       actions.append(slot('sidebar', iconButton(hidden ? 'radio-off' : 'radio-on', hidden ? S.showInSidebar : S.hideFromSidebar, hidden ? '' : 'iobtn-visible', () => { setNavHidden(win, worldPageId(m.id), !hidden); render(); })));
     }
     // An unavailable uninstall stays visible, greyed, with the reason on hover.
-    if (pack?.state !== 'removed') {
+    // Coopet 本地修改：没有扩展功能（canBrowse）时不显示卸载键：Coopet 的 World 是内置的，卸不了
+    if (pack?.state !== 'removed' && canBrowse) {
       const owner = market, key = item.key;
       const reason = removalBlockReason(pack, m ? m.status === 'active' || changingWorlds.has(m.id) : pack?.enabled) || (!owner ? E.remove : '');
       const remove = slot('remove', iconButton('trash', E.remove, 'iobtn-remove', () => { if (!reason && pack && owner) void owner.remove(pack.name, () => railList.querySelector(`.world-blade[data-key="${CSS.escape(key)}"] .iobtn-remove`)); }));

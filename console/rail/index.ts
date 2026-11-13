@@ -25,6 +25,9 @@ import { createAvatarControl } from './avatar.ts';
 import { S } from './strings.ts';
 import { fold, prefersStill, steadiest } from '../base/motion.ts';
 
+/** Coopet 本地修改：侧边栏底部的名字是 MaiBot 设置里的 Bot 名字，只显示、不能改 */
+const NAME_FROM_MAIBOT = true;
+
 const COLLAPSED_KEY = 'companion.sidebar.collapsed';
 const DEFAULT_NAME = 'bot';
 
@@ -323,7 +326,8 @@ export function createRail(deps: RailDeps): Rail {
   const runState = ui.h('span', 'companion-runstate');
   runState.setAttribute('aria-hidden', 'true');
   runState.addEventListener('click', () => run.click(), { signal });
-  actions.append(shutdown, run, runState);
+  // Coopet 本地修改：不显示暂停键和运行状态（那是 Cortico 模型会话的暂停，Coopet 没有）
+  actions.append(shutdown);
   foot.append(who, actions);
 
   // Coopet 本地修改：不显示「高级模式」开关（高级模式的页面 Coopet 没有后端）
@@ -414,6 +418,7 @@ export function createRail(deps: RailDeps): Rail {
   };
   // the name is `displayName` in Core's config; Enter or leaving the box saves it, Escape drops the edit
   name.addEventListener('click', () => {
+    if (NAME_FROM_MAIBOT) return; // Coopet 本地修改：名字来自 MaiBot，这里不能改
     const field = ui.input({ value: shownName });
     field.className = 'field rail-rename';
     name.replaceWith(field);

@@ -59,7 +59,8 @@ async function mount(ctx: PageContext): Promise<void> {
   /* ---------- heading ---------- */
   const guide = ui.button(S.guide, { size: 'sm', onClick: () => { void invokePanel(PET_PAGE, 'pet', 'guide', [], opts).catch((err) => problem(guide, errText(err))); } });
   guide.title = S.guideHint;
-  root.append(intro(ui, S.nav, { actions: [guide] }));
+  // Coopet 本地修改：不显示「使用向导」（引导要宿主应用提供，Coopet 没有）
+  root.append(intro(ui, S.nav));
 
   /* ---------- model ---------- */
   // one view: the service in use on the first row with its test button, the others below it; a pick fills
