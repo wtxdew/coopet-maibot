@@ -118,6 +118,31 @@ describe('webui surface', () => {
     expect(t.loaded.cfg.language).toBe('en');
   });
 
+  it('offers automatic updates only in a build that updates itself, and tells the shell about a change', async () => {
+    const plain = await setup();
+    const none = (await plain.get('/api/config')).body.groups.find((g: { group: { id: string } }) => g.group.id === 'companion');
+    expect(none.values).toEqual({ language: 'zh' });
+    expect(none.group.schema.properties['companion.autoUpdate']).toBeUndefined();
+
+    vi.stubEnv('COOPET_SELF_UPDATE', '1');
+    try {
+      const onAutoUpdate = vi.fn();
+      const t = await setup(() => ({ onAutoUpdate }));
+      const g = (await t.get('/api/config')).body.groups.find((x: { group: { id: string } }) => x.group.id === 'companion');
+      expect(g.values).toEqual({ language: 'zh', 'companion.autoUpdate': true });
+      expect(g.group.schema.properties['companion.autoUpdate']).toMatchObject({ type: 'boolean' });
+      const r = await t.post('/api/config', { group: 'companion', values: { 'companion.autoUpdate': false } });
+      expect(r.body).toMatchObject({ ok: true, result: '已保存' });
+      expect(t.loaded.cfg.update.auto).toBe(false);
+      expect(t.loaded.cfg.language).toBe('zh');
+      expect(onAutoUpdate).toHaveBeenCalledWith(false);
+      expect((await t.post('/api/config', { group: 'companion', values: { 'companion.autoUpdate': false } })).body.result).toBe('没有改动');
+      expect(onAutoUpdate).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('shows the link settings without tokens', async () => {
     const t = await setup();
     writeFileSync(join(t.root, 'plugin-token'), 'secret-token');

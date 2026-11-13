@@ -209,6 +209,22 @@ describe('routes', () => {
   });
 });
 
+describe('update', () => {
+  it('turns automatic updates on by default and saves a change', () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-update-'));
+    const dirs = coopetDirs(root);
+    const loaded = loadConfig(dirs, { debounceMs: 0 });
+    expect(loaded.cfg.update).toEqual({ auto: true });
+    loaded.persist({ update: { auto: false } });
+    expect(loaded.cfg.update.auto).toBe(false);
+    expect(() => loaded.persist({ update: { auto: 'no' as never } })).toThrow(/update.auto/);
+    expect(loaded.cfg.update.auto).toBe(false);
+    loaded.flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).update).toEqual({ auto: false });
+    expect(loadConfig(dirs).cfg.update.auto).toBe(false);
+  });
+});
+
 describe('migrateLegacyData', () => {
   it('copies the old folder once, without electron/ and data/webui/, leaving the old one in place', async () => {
     const { migrateLegacyData } = await import('../src/runtime/config.ts');

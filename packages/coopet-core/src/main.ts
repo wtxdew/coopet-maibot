@@ -30,6 +30,8 @@ import { routeGroup } from './webui/route-settings.ts';
 import { loadWorldExtensions } from './runtime/extensions.ts';
 import { WorldRuntime } from './runtime/worlds.ts';
 import { SecretStore } from './runtime/secrets.ts';
+import { parseStep, sayUpdates } from './runtime/updates.ts';
+import { canSelfUpdate } from './webui/update-settings.ts';
 import { join } from 'node:path';
 
 const PLATFORM = 'coopet';
@@ -122,6 +124,14 @@ await worlds.startAll();
 /** 设置窗的后端（只在被外壳启动时开）：只监听 127.0.0.1，端口由系统分配 */
 let web: WebApp | null = null;
 
+/** 更新器（外壳的 updater.cjs）每一步的气泡；只在被外壳启动时有 */
+const updates = shell ? sayUpdates({
+  pet: () => pet,
+  language: () => cfg.language,
+  install: () => shell.send({ type: 'update-install' }),
+  releases: () => shell.send({ type: 'releases' }),
+}) : null;
+
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
@@ -129,6 +139,7 @@ async function shutdown(signal: string): Promise<void> {
   log.info(`收到 ${signal}，正在退出`);
   try {
     conductor?.stop();
+    updates?.stop();
     await link.stop();
     await web?.stop();
     await worlds.stopAll();
@@ -148,13 +159,20 @@ if (shell) {
     else if (m.type === 'hide-pet') void pet.hide();
     else if (m.type === 'toggle-pet') void pet.toggle();
     else if (m.type === 'shutdown') void shutdown('外壳要求退出');
+    else if (m.type === 'update') {
+      const step = parseStep(m.step);
+      if (step !== undefined) updates?.take(step);
+    }
   });
+  // 能自己装更新的版本：把保存的自动更新开关告诉外壳，外壳据此启动更新器
+  if (canSelfUpdate()) shell.send({ type: 'auto-update', enabled: cfg.update.auto });
   // 外壳主进程没了（崩溃或被强制结束）：核心也退出，不留孤儿进程
   shell.onDisconnect(() => void shutdown('外壳断开'));
   const webLog = log.child('webui');
   web = new WebApp(createSurface({
     cfg, persist, persistPet, pet, store, dirs, log: webLog, botName,
     onLanguage: (language) => shell.send({ type: 'language', language }),
+    onAutoUpdate: (enabled) => shell.send({ type: 'auto-update', enabled }),
     link: () => ({ kind: cfg.link.kind, state: link.state(), since: linkSince, ...(linkReason ? { reason: linkReason } : {}), ...(link.botName() ? { botName: link.botName() } : {}) }),
     runlog, version: CLIENT_VERSION, startedAt: STARTED_AT,
     conversation: () => conductor?.stats() ?? null,

@@ -39,6 +39,7 @@ import type { PetHandle } from '../runtime/pet.ts';
 import type { LinkState } from '../link/types.ts';
 import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from './link-settings.ts';
 import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts';
+import { AUTO_UPDATE_KEY, autoUpdateProperties, saveUpdateValues, updateValues } from './update-settings.ts';
 import type { ConversationStats } from '../conductor/stats.ts';
 import type { extensionWorlds } from './extension-worlds.ts';
 import { ROUTE_OPTIONS, ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from './route-settings.ts';
@@ -58,6 +59,8 @@ export interface SurfaceDeps {
   persistPet(patch: DeepPartial<DesktopPetConfigSection>): void;
   /** 界面语言改了（已保存、桌宠已刷新）：告诉外壳 */
   onLanguage?(language: Language): void;
+  /** 「自动更新」改了（已保存）：告诉外壳 */
+  onAutoUpdate?(enabled: boolean): void;
   pet: Pick<PetHandle, 'webUi' | 'toolNames' | 'refresh' | 'onDesktop' | 'origin'>;
   store: EventStoreReader & { subscribe(cb: (e: EventEnvelope) => void): void };
   /** 本次运行的结构化日志（runtime/runlog.ts） */
@@ -97,6 +100,7 @@ function languageGroup(language: Language): ConfigGroup {
       title: zh ? '通用' : 'General',
       properties: {
         [LANGUAGE_KEY]: { type: 'string', title: zh ? '语言' : 'Language', enum: [...LANGUAGES], 'x-options': LANGUAGE_OPTIONS, 'x-hot': true },
+        ...autoUpdateProperties(language),
       },
     },
   };
@@ -187,7 +191,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
     },
     config: {
       groups: (language) => [
-        { group: languageGroup(language), values: { [LANGUAGE_KEY]: d.cfg.language } },
+        { group: languageGroup(language), values: { [LANGUAGE_KEY]: d.cfg.language, ...updateValues(d.cfg) } },
         { group: linkGroup(language), values: linkValues(d.cfg) },
         { group: logGroup(language), values: logValues(d.cfg) },
         ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
@@ -205,6 +209,12 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
           d.log.info(`设置窗改了连接设置（${d.cfg.link.kind}），换上新连接`);
           void d.applyLink().catch((err: unknown) => d.log.error(`换连接失败：${String(err)}`));
           return baseLanguage(language) === 'zh' ? '已保存，正在连接' : 'Saved, connecting';
+        }
+        if (groupId === LANGUAGE_GROUP && AUTO_UPDATE_KEY in values) {
+          if (!saveUpdateValues(values, d)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
+          d.log.info(`设置窗${d.cfg.update.auto ? '打开' : '关掉'}了自动更新`);
+          d.onAutoUpdate?.(d.cfg.update.auto);
+          return baseLanguage(language) === 'zh' ? '已保存' : 'Saved';
         }
         if (groupId === LANGUAGE_GROUP) {
           const next = values[LANGUAGE_KEY] as Language | undefined;

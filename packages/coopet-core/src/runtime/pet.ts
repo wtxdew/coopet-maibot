@@ -13,7 +13,7 @@ import { mkdirSync } from 'node:fs';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { EventEnvelope, Logger, RunPhase, ToolOutcome, WorldWebUiDecl } from 'cortico/core/types.ts';
 import type { Language } from 'cortico/core/language.ts';
-import { DesktopPetWorld, type DesktopPetConfigSection, type PetBotControls } from 'cortico-world-desktop-pet';
+import { DesktopPetWorld, type DesktopPetConfigSection, type PetBotControls, type PetDialog, type PetDialogHandle } from 'cortico-world-desktop-pet';
 import type { CoopetDirs } from './config.ts';
 import type { MemoryEventStore } from './event-store.ts';
 import { createWorldHost, MAIBOT_MODEL_FACTS, type HostedEvent } from './world-host.ts';
@@ -60,6 +60,10 @@ export interface PetHandle {
   webUi(language: Language): WorldWebUiDecl;
   /** 桌宠现在的工具名（World 列表里显示） */
   toolNames(): string[];
+  /** 在气泡里问一句、带按钮（更新提示用，runtime/updates.ts） */
+  dialog(d: PetDialog): PetDialogHandle;
+  /** 桌宠页面现在连着没有（没连着时气泡说不出来） */
+  connected(): boolean;
   /** 桌宠页面的地址（实际绑上的端口，配置的被占时会往后换），例如 http://127.0.0.1:7797；换装页是 `${origin}/dress` */
   readonly origin: string;
   /** 停止：桌宠会保存窗口位置，关掉页面服务和 Electron 窗口 */
@@ -135,6 +139,8 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     refresh: () => world.refresh(),
     webUi: (language) => world.webUi(language),
     toolNames: () => world.tools().map((t) => t.name),
+    dialog: (d) => world.dialog(d),
+    connected: () => world.petState().connected === true,
     origin,
     async stop() {
       if (stopped) return;

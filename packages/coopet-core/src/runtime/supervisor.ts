@@ -3,8 +3,10 @@
  * 直接 `corepack pnpm dev` 运行时没有 IPC，connectSupervisor 返回 null，其余代码照常工作。
  *
  * 核心 → 外壳：ready（桌宠页面地址、设置窗后端的端口、界面语言）、language（界面语言改了）、link（连接状态）、
- *              pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、open-settings（桌宠菜单里点了设置、装扮等，带页面）
- * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、shutdown
+ *              pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、open-settings（桌宠菜单里点了设置、装扮等，带页面）、
+ *              auto-update（自动更新的开关，启动时和改了时）、update-install（气泡里点了现在重启更新）、releases（打开 Release 页面）
+ * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、shutdown、
+ *              update（更新器的一步，或 null：更新被取消；runtime/updates.ts 在气泡里说）
  *
  * 设置窗不走这里：它直接和核心里的设置窗后端（Cortico WebApp，webui/surface.ts）说话。
  */
@@ -16,13 +18,17 @@ export type ToShell =
   | { type: 'pet'; onDesktop: boolean }
   | { type: 'quit' }
   /** route：设置窗的页面，例如 `#/dress`；不给时打开上次的页面 */
-  | { type: 'open-settings'; route?: string };
+  | { type: 'open-settings'; route?: string }
+  | { type: 'auto-update'; enabled: boolean }
+  | { type: 'update-install' }
+  | { type: 'releases' };
 
 export type FromShell =
   | { type: 'show-pet' }
   | { type: 'hide-pet' }
   | { type: 'toggle-pet' }
-  | { type: 'shutdown' };
+  | { type: 'shutdown' }
+  | { type: 'update'; step: unknown };
 
 export interface Supervisor {
   send(message: ToShell): void;

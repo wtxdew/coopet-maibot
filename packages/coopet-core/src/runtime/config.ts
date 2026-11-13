@@ -74,6 +74,12 @@ export interface CoopetConfig {
   pet: DesktopPetConfigSection;
   /** 按 World id 的路由设置；没写的按 auto */
   routes: Record<string, { mode: RouteMode }>;
+  /** 自动更新（只有能自己装更新的版本用到，见 webui/update-settings.ts）；默认开 */
+  update: UpdateConfig;
+}
+
+export interface UpdateConfig {
+  auto: boolean;
 }
 
 export interface CoopetDirs {
@@ -229,6 +235,7 @@ export interface AppPatch {
   botName?: string;
   log?: Partial<LogConfig>;
   link?: DeepPartial<LinkConfig>;
+  update?: Partial<UpdateConfig>;
 }
 
 export interface LoadedConfig {
@@ -276,6 +283,7 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
     log: logFrom(file.log),
     link: linkFrom(dirs, overrides.link!),
     pet,
+    update: updateFrom(file.update),
   };
 
   /** 扩展 World 的活配置对象，按 id */
@@ -320,8 +328,11 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       mergeInPlace(nextLogRaw, patch.log);
       const nextLinkRaw = structuredClone(overrides.link ?? {});
       mergeInPlace(nextLinkRaw, patch.link);
+      const nextUpdateRaw = structuredClone(isPlainObject(overrides.update) ? overrides.update : {});
+      mergeInPlace(nextUpdateRaw, patch.update);
       const nextLog = logFrom(nextLogRaw);
       const nextLink = linkFrom(dirs, nextLinkRaw);
+      const nextUpdate = updateFrom(nextUpdateRaw);
 
       if (patch.botName !== undefined) {
         overrides.botName = patch.botName;
@@ -338,8 +349,10 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       }
       if (patch.log) overrides.log = nextLogRaw;
       if (patch.link) overrides.link = nextLinkRaw;
+      if (patch.update) overrides.update = nextUpdateRaw;
       cfg.log = nextLog;
       cfg.link = nextLink;
+      cfg.update = nextUpdate;
       schedule();
     },
     worldSection<S extends object>(id: string, defaults: S): S {
@@ -387,6 +400,13 @@ function logFrom(raw: unknown): LogConfig {
   if (!LEVELS.includes(log.level)) throw new Error(`log.level 只能是 ${LEVELS.join('、')}，收到：${String(log.level)}`);
   if (typeof log.file !== 'boolean') throw new Error('log.file 必须是 true 或 false');
   return log;
+}
+
+function updateFrom(raw: unknown): UpdateConfig {
+  const update: UpdateConfig = { auto: true };
+  mergeInPlace(update, raw);
+  if (typeof update.auto !== 'boolean') throw new Error('update.auto 必须是 true 或 false');
+  return update;
 }
 
 function linkFrom(dirs: CoopetDirs, overrides: Record<string, unknown>): LinkConfig {
