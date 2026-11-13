@@ -16,7 +16,7 @@ import type { Link } from './link/types.ts';
 import { LinkSwitch } from './link/switch.ts';
 import { coopetDirs, deviceId, loadConfig, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
 import { openEventLog } from './runtime/event-store.ts';
-import { consoleLogger, DailyFileSink } from './runtime/log.ts';
+import { consoleLogger, DailyFileSink, switchableSink } from './runtime/log.ts';
 import type { Logger } from 'cortico/core/types.ts';
 import { startPet } from './runtime/pet.ts';
 import { connectSupervisor } from './runtime/supervisor.ts';
@@ -31,7 +31,8 @@ const CLIENT_VERSION = (JSON.parse(readFileSync(new URL('../package.json', impor
 const dirs = coopetDirs();
 // 读配置时还不知道日志级别和要不要写文件：这一步的提示只写到终端
 const { cfg, persistPet, persist, flush } = loadConfig(dirs, { log: consoleLogger('coopet') });
-const log = consoleLogger('coopet', cfg.log.level, cfg.log.file ? new DailyFileSink(dirs.logs) : undefined);
+// 级别和写不写文件每次现读配置：设置窗里改了马上生效
+const log = consoleLogger('coopet', () => cfg.log.level, switchableSink(new DailyFileSink(dirs.logs), () => cfg.log.file));
 log.info(`Coopet 启动（v${CLIENT_VERSION}，连接方式 ${cfg.link.kind}，日志级别 ${cfg.log.level}${cfg.log.file ? `，日志文件 ${dirs.logs}` : ''}）`);
 // 事件写进文件，重启后对话页还能看到以前的记录
 const store = openEventLog(dirs.events, { onWriteError: (err) => log.warn(`事件记录写不了（${dirs.events}），之后只留在内存里：${err.message}`) });
