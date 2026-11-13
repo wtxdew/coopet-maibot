@@ -5,13 +5,16 @@
  * 这里给的（其余 WebApp 功能不给，相应接口回 503 加说明）：
  * - getStatus：`/api/status`。页面读 displayName（侧边栏的名字）、loop.paused（侧边栏的运行键）；
  *   另加 Coopet 自己的 link（MaiBot 连接：方式、状态、关闭原因、Bot 名字、两种 token 有没有设置）
- *   和 pet（桌宠是否在桌面上），连接卡用。
+ *   和 pet（桌宠是否在桌面上），连接卡用；运行诊断另读 version、startedAt、runId、events、log、conversation（对话统计）。
  * - config：`/api/config`。桌宠的配置说明书（desktopPetConfigGroups），只去掉语音识别和电脑操作两组；
  *   哪些项显示由页面自己决定（Coopanion 的「习惯」页只发它显示的键）。写入前 WebApp 已用 coerceGroupValues
  *   检查过类型和范围，这里写回 config.json 后 refresh，标了 x-hot 的项马上生效。
  * - config 里另有 `companion` 组，只有 `language`（界面语言）：组名和键是 Coopanion「习惯」页写死的；
  *   选项来自 `/api/config/options/coopanion.language`（Cortico 的语言名表）。改了之后桌宠刷新，并经 onLanguage 告诉外壳。
  * - config 里还有 `coopet.link` 组（连接 MaiBot，见 link-settings.ts）：写完后经 applyLink 换上新连接，不重启。
+ * - config 里还有 `coopet.log` 组（日志级别、写不写文本日志，见 log-settings.ts），「运行诊断 → 配置」用。
+ * - debug（调试通道 /ws/debug）：只给本次运行 id（运行日志页默认读它）、新日志和新事件的推送；
+ *   模型会话相关的几项给空（Coopet 没有模型会话）。
  * - worlds：`/api/worlds`，只有桌宠一个。
  * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
  *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
@@ -24,7 +27,7 @@
 import { join } from 'node:path';
 import type { ConfigGroup, ConfigValues } from 'cortico/core/config-schema.ts';
 import { baseLanguage, LANGUAGE_NAMES, LANGUAGES, type Language } from 'cortico/core/language.ts';
-import type { EventStoreReader, Logger, World } from 'cortico/core/types.ts';
+import type { EventEnvelope, EventStoreReader, Logger, LogRecord, World } from 'cortico/core/types.ts';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { WebAppDeps, WebUiWorldInfo } from 'cortico/web/server.ts';
 import type { WebUiPageSource } from 'cortico/web/webui-pages.ts';
@@ -34,6 +37,8 @@ import type { AppPatch, CoopetConfig, CoopetDirs } from '../runtime/config.ts';
 import type { PetHandle } from '../runtime/pet.ts';
 import type { LinkState } from '../link/types.ts';
 import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from './link-settings.ts';
+import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts';
+import type { ConversationStats } from '../conductor/stats.ts';
 
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
@@ -50,13 +55,20 @@ export interface SurfaceDeps {
   persistPet(patch: DeepPartial<DesktopPetConfigSection>): void;
   /** 界面语言改了（已保存、桌宠已刷新）：告诉外壳 */
   onLanguage?(language: Language): void;
-  pet: Pick<PetHandle, 'webUi' | 'toolNames' | 'refresh' | 'onDesktop'>;
-  store: EventStoreReader;
+  pet: Pick<PetHandle, 'webUi' | 'toolNames' | 'refresh' | 'onDesktop' | 'origin'>;
+  store: EventStoreReader & { subscribe(cb: (e: EventEnvelope) => void): void };
+  /** 本次运行的结构化日志（runtime/runlog.ts） */
+  runlog: { readonly runId: string; onWrite(cb: (record: LogRecord) => void): void };
+  version: string;
+  /** 核心启动时刻（ISO） */
+  startedAt: string;
+  /** 对话统计（Conductor.stats）；Conductor 还没建好时为 null */
+  conversation(): ConversationStats | null;
   dirs: CoopetDirs;
   log: Logger;
   botName(): string;
   /** 当前连接：方式、状态、最近一次关闭的原因（'auth'、关闭码…）、Bot 名字 */
-  link(): { kind: string; state: LinkState; reason?: string; botName?: string };
+  link(): { kind: string; state: LinkState; reason?: string; botName?: string; since?: string };
   /** 按 cfg.link 换上新连接（连接设置保存后调用） */
   applyLink(): Promise<void>;
   /** 面板脚本目录（assets.ts 准备的） */
@@ -147,17 +159,38 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
     log: d.log,
     getStatus: () => ({
       displayName: d.botName(),
+      version: d.version,
+      startedAt: d.startedAt,
+      runId: d.runlog.runId,
       loop: { paused: false },
       link: { ...d.link(), tokenSet: linkTokens(d.cfg) },
-      pet: { onDesktop: d.pet.onDesktop() },
+      pet: { onDesktop: d.pet.onDesktop(), url: d.pet.origin },
+      events: { latest: d.store.latestCursor(), dir: d.dirs.events },
+      log: { level: d.cfg.log.level, file: d.cfg.log.file, dir: d.dirs.logs },
+      conversation: d.conversation(),
     }),
+    debug: {
+      runId: () => d.runlog.runId,
+      onRunlog: (cb) => d.runlog.onWrite(cb),
+      onEvent: (cb) => d.store.subscribe(cb),
+      sessionMessages: () => [],
+      onSessionAppend: () => {},
+      onSessionReset: () => {},
+      toolSchemas: () => [],
+    },
     config: {
       groups: (language) => [
         { group: languageGroup(language), values: { [LANGUAGE_KEY]: d.cfg.language } },
         { group: linkGroup(language), values: linkValues(d.cfg) },
+        { group: logGroup(language), values: logValues(d.cfg) },
         ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
       ],
       set: (groupId, values, language) => {
+        if (groupId === LOG_GROUP) {
+          if (!saveLogValues(values, d)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
+          d.log.info(`设置窗改了日志设置：级别 ${d.cfg.log.level}，${d.cfg.log.file ? '写' : '不写'}文本日志`);
+          return baseLanguage(language) === 'zh' ? '已保存' : 'Saved';
+        }
         if (groupId === LINK_GROUP) {
           if (!saveLinkValues(values, d, language)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
           d.log.info(`设置窗改了连接设置（${d.cfg.link.kind}），换上新连接`);

@@ -11,6 +11,7 @@ import { consoleLogger } from '../src/runtime/log.ts';
 import { MemoryEventStore } from '../src/runtime/event-store.ts';
 import { createSurface } from '../src/webui/surface.ts';
 import { petPackageDir, prepareWebAssets } from '../src/webui/assets.ts';
+import { openRunlog } from '../src/runtime/runlog.ts';
 
 const apps: WebApp[] = [];
 afterEach(async () => { for (const a of apps.splice(0)) await a.stop(); });
@@ -36,7 +37,7 @@ async function setup() {
       socket.onMessage((text) => socket.send(`echo:${text}`));
     },
   } as WorldWebUiDecl;
-  const pet = { webUi: () => decl, toolNames: () => ['pet_say'], refresh: vi.fn(), onDesktop: () => true };
+  const pet = { webUi: () => decl, toolNames: () => ['pet_say'], refresh: vi.fn(), onDesktop: () => true, origin: 'http://127.0.0.1:7797' };
 
   // 假的面板脚本
   const petDir = join(root, 'pet');
@@ -47,9 +48,14 @@ async function setup() {
 
   const onLanguage = vi.fn();
   const applyLink = vi.fn(async () => {});
+  const store = new MemoryEventStore();
+  const runlog = openRunlog(dirs.data, { timezone: 'Asia/Shanghai' });
+  const runLog = consoleLogger('coopet', 'info', runlog.sink);
   const app = new WebApp(createSurface({
-    cfg: loaded.cfg, persist: loaded.persist, persistPet, onLanguage, pet, store: new MemoryEventStore(), dirs, log,
-    botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'closed', reason: 'auth' }), applyLink, webDistDir,
+    cfg: loaded.cfg, persist: loaded.persist, persistPet, onLanguage, pet, store, dirs, log,
+    botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'closed', reason: 'auth', since: '2026-11-13T10:00:00.000Z' }), applyLink, webDistDir,
+    runlog, version: '0.0.0', startedAt: '2026-11-13T09:00:00.000Z',
+    conversation: () => ({ turns: 3, last: null, recent: { replied: 2, medianReplyMs: 2500, maxReplyMs: 4000 } }),
   }));
   apps.push(app);
   const port = await app.start(0);
@@ -59,7 +65,7 @@ async function setup() {
     const r = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
     return { status: r.status, body: await r.json() as any };
   };
-  return { root, dirs, loaded, persistPet, onLanguage, applyLink, pet, invoke, streams, base, port, get, post };
+  return { root, dirs, loaded, persistPet, onLanguage, applyLink, store, runlog, runLog, pet, invoke, streams, base, port, get, post };
 }
 
 describe('webui surface', () => {
@@ -71,7 +77,13 @@ describe('webui surface', () => {
       link: { kind: 'plugin', state: 'closed', reason: 'auth', tokenSet: { plugin: false, maim: false } },
     });
     const caps = (await t.get('/api/capabilities')).body.capabilities;
-    expect(caps).toMatchObject({ config: true, worlds: true, avatar: true, extensions: false, run: false, prompts: false });
+    expect(caps).toMatchObject({ config: true, worlds: true, avatar: true, debug: true, extensions: false, run: false, prompts: false });
+    expect(st.body).toMatchObject({
+      version: '0.0.0', startedAt: '2026-11-13T09:00:00.000Z', runId: t.runlog.runId,
+      link: { since: '2026-11-13T10:00:00.000Z' }, pet: { url: 'http://127.0.0.1:7797' },
+      events: { latest: 0 }, log: { level: 'info', file: true },
+      conversation: { turns: 3, recent: { medianReplyMs: 2500 } },
+    });
   });
 
   it('lists the pet config groups without speech recognition and computer use', async () => {
@@ -134,6 +146,39 @@ describe('webui surface', () => {
     expect(t.loaded.cfg.link.plugin.url).toBe('');
     expect(t.applyLink).not.toHaveBeenCalled();
     expect((await t.post('/api/config', { group: 'coopet.link', values: { 'link.kind': 'carrier-pigeon' } })).status).toBe(400);
+  });
+
+  it('saves log settings', async () => {
+    const t = await setup();
+    const r = await t.post('/api/config', { group: 'coopet.log', values: { 'log.level': 'debug', 'log.file': false } });
+    expect(r.body.result).toBe('已保存');
+    expect(t.loaded.cfg.log).toEqual({ level: 'debug', file: false });
+    expect((await t.post('/api/config', { group: 'coopet.log', values: { 'log.level': 'loud' } })).status).toBe(400);
+  });
+
+  it('serves this run\'s log and the runs index', async () => {
+    const t = await setup();
+    t.runLog.child('link').warn('连不上', { code: 1006 });
+    const runs = (await t.get('/api/runs')).body;
+    expect(runs.current).toBe(t.runlog.runId);
+    expect(runs.runs.map((r: { run: string }) => r.run)).toContain(t.runlog.runId);
+    const records = (await t.get('/api/log?area=coopet.link')).body as Array<{ msg: string; area: string }>;
+    expect(records).toEqual([expect.objectContaining({ area: 'coopet.link', msg: '连不上' })]);
+    const bundle = (await t.get('/api/diagnostics')).body;
+    expect(JSON.stringify(bundle)).toContain('连不上');
+  });
+
+  it('pushes new events and log records on the debug channel', async () => {
+    const t = await setup();
+    const ws = new WebSocket(`ws://127.0.0.1:${t.port}/ws/debug`);
+    const frames: Array<{ t: string }> = [];
+    await new Promise<void>((resolve, reject) => { ws.on('open', () => resolve()); ws.on('error', reject); });
+    ws.on('message', (data) => frames.push(JSON.parse(String(data))));
+    t.store.append({ type: 'desktop-pet.message', source: 'desktop-pet', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text: '你好' });
+    t.runLog.info('一轮结束');
+    await new Promise((r) => setTimeout(r, 100));
+    ws.close();
+    expect(frames.map((f) => f.t)).toEqual(expect.arrayContaining(['event', 'runlog']));
   });
 
   it('writes a checked value, refreshes the pet and returns the groups', async () => {

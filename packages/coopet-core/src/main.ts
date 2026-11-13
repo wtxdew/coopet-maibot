@@ -47,6 +47,9 @@ const shell = connectSupervisor();
 const link = new LinkSwitch(createLink(cfg, dirs, log.child('link')));
 /** 最近一次关闭的原因（设置窗的连接卡显示）；连上后清掉 */
 let linkReason: string | undefined;
+/** 连接进入当前状态的时刻（运行诊断显示"已持续多久"） */
+let linkSince = new Date().toISOString();
+const STARTED_AT = new Date().toISOString();
 async function applyLink(): Promise<void> {
   linkReason = undefined;
   await link.replace(createLink(cfg, dirs, log.child('link')));
@@ -54,6 +57,7 @@ async function applyLink(): Promise<void> {
 /** 连上插件后用 MaiBot 设置里的名字；不知道时用本地配置的 botName */
 const botName = (): string => link.botName?.() ?? cfg.botName;
 link.onState((s, reason) => {
+  linkSince = new Date().toISOString();
   if (s === 'open') linkReason = undefined;
   else if (s === 'closed' && reason && reason !== 'switching') linkReason = reason;
   log.info(`MaiBot 连接（${cfg.link.kind}）：${s}${reason ? `（${reason}）` : ''}`);
@@ -126,7 +130,9 @@ if (shell) {
   web = new WebApp(createSurface({
     cfg, persist, persistPet, pet, store, dirs, log: webLog, botName,
     onLanguage: (language) => shell.send({ type: 'language', language }),
-    link: () => ({ kind: cfg.link.kind, state: link.state(), ...(linkReason ? { reason: linkReason } : {}), ...(link.botName() ? { botName: link.botName() } : {}) }),
+    link: () => ({ kind: cfg.link.kind, state: link.state(), since: linkSince, ...(linkReason ? { reason: linkReason } : {}), ...(link.botName() ? { botName: link.botName() } : {}) }),
+    runlog, version: CLIENT_VERSION, startedAt: STARTED_AT,
+    conversation: () => conductor?.stats() ?? null,
     applyLink,
     webDistDir: prepareWebAssets(dirs.data, webLog),
   }));
