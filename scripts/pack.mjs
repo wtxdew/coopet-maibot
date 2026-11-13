@@ -37,7 +37,7 @@ const rootPkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 const WORKSPACE = ['cortico-world-desktop-pet', 'cortico-provider-coo'];
 /**
  * 运行时依赖：核心和它加载的 Cortico 代码（express、ws、undici、fflate、tar-stream）、TypeScript 加载器 tsx、
- * 装扩展用的 pnpm（--ext）、内置的 World 扩展，以及工作区各包自己的依赖。
+ * 装扩展用的 pnpm（--ext）、内置的 World 扩展（agent 通知、ntfy），以及工作区各包自己的依赖。
  */
 const DEPS = {
   express: rootPkg.dependencies.express,
@@ -48,6 +48,7 @@ const DEPS = {
   'tar-stream': rootPkg.devDependencies['tar-stream'],
   pnpm: rootPkg.packageManager.replace(/^pnpm@/, ''),
   'cortico-world-coding-agent-notify': rootPkg.dependencies['cortico-world-coding-agent-notify'],
+  'cortico-world-ntfy': rootPkg.dependencies['cortico-world-ntfy'],
 };
 // 外壳自己的依赖（自动更新的 electron-updater）
 const appPkg = JSON.parse(readFileSync(join(ROOT, 'packages', 'coopet-app', 'package.json'), 'utf8'));

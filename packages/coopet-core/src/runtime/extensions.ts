@@ -8,8 +8,8 @@
  * Coopet 只用 World 扩展；模型供应商和 bot 类扩展装了也不用，记一条日志。
  * `desktop-pet` 这个 id 留给内置的桌宠。
  *
- * 另有**内置扩展**（BUNDLED）：作为固定版本的 npm 依赖随 Coopet 一起安装（开发时在仓库的 node_modules，打包后在应用里），
- * 不用另外装，默认启用。用户扩展目录里如果也装了同一个 id 的扩展，以内置的为准（那份报"id 已被占用"）。
+ * 另有**内置扩展**（BUNDLED）：作为 npm 依赖随 Coopet 一起安装（开发时在仓库的 node_modules，打包后在应用里），
+ * 不用另外装，默认启用。第三方的钉死版本；为 Coopet 写的（ntfy）跟着 0.1.x 的修复版。用户扩展目录里如果也装了同一个 id 的扩展，以内置的为准（那份报"id 已被占用"）。
  * 内置扩展原样使用，来源和许可见 UPSTREAM.md。
  */
 
@@ -40,6 +40,9 @@ export interface LoadedExtensions {
 export const BUNDLED: ReadonlyArray<{ name: string; enabledByDefault: boolean }> = [
   // ThermalEng 的 Coding Agent 完成通知（Claude Code、Codex 等的原生 hook → 桌宠说一句）
   { name: 'cortico-world-coding-agent-notify', enabledByDefault: true },
+  // 为 Coopet 写的 ntfy 通知（wtxdew/cortico-world-ntfy）：订阅 ntfy 话题，脚本、CI、另一台电脑上的 Agent 发的通知桌宠说出来。
+  // 没加话题时不连 ntfy
+  { name: 'cortico-world-ntfy', enabledByDefault: true },
 ];
 
 export async function loadWorldExtensions(dirs: CoopetDirs, log: Logger, bundled = BUNDLED): Promise<LoadedExtensions> {

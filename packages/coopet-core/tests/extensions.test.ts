@@ -57,18 +57,20 @@ describe('loadWorldExtensions', () => {
 });
 
 describe('bundled extensions', () => {
-  it('loads agent-notify from the installed dependency, enabled by default, and skips a user copy of it', async () => {
+  it('loads agent-notify and ntfy from the installed dependencies, enabled by default, and skips a user copy of it', async () => {
     const root = mkdtempSync(join(tmpdir(), 'coopet-ext-'));
     addPackage(root, 'my-copy-of-notify', { main: 'index.js', cortico: { kind: 'world', api: 6 } }, {
       'index.js': `export default { id: 'coding-agent-notify', label: 'X', defaults: () => ({ enabled: false }), create: () => ({}) };`,
     });
     const loaded = await loadWorldExtensions(coopetDirs(root), consoleLogger('test', 'error'));
-    expect(loaded.worlds.map((w) => w.id)).toEqual(['coding-agent-notify']);
+    expect(loaded.worlds.map((w) => w.id)).toEqual(['coding-agent-notify', 'ntfy']);
     expect(loaded.worlds[0].defaults()).toMatchObject({ enabled: true });
+    expect(loaded.worlds[1].defaults()).toMatchObject({ enabled: true, server: 'https://ntfy.sh', topics: [] });
     expect(typeof loaded.worlds[0].create).toBe('function');
     const bundled = loaded.records.find((r) => r.name === 'cortico-world-coding-agent-notify');
     expect(bundled).toMatchObject({ spec: 'bundled', loaded: true, version: '1.2.0', webUi: 'served' });
     expect(loaded.records.find((r) => r.name === 'my-copy-of-notify')?.loaded).toBe(false);
-    expect(loaded.webUiAssets.map((a) => a.pageId)).toEqual(['world:coding-agent-notify']);
+    expect(loaded.records.find((r) => r.name === 'cortico-world-ntfy')).toMatchObject({ spec: 'bundled', loaded: true, webUi: 'served' });
+    expect(loaded.webUiAssets.map((a) => a.pageId)).toEqual(['world:coding-agent-notify', 'world:ntfy']);
   });
 });

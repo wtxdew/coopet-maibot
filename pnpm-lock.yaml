@@ -17,6 +17,9 @@ importers:
       cortico-world-desktop-pet:
         specifier: workspace:*
         version: link:packages/cortico-world-desktop-pet
+      cortico-world-ntfy:
+        specifier: ^0.1.0
+        version: 0.1.0
       express:
         specifier: ^4.22.3
         version: 4.22.3(supports-color@7.2.0)
@@ -1284,6 +1287,10 @@ packages:
 
   cortico-world-coding-agent-notify@1.2.0:
     resolution: {integrity: sha512-WHIqFgEo+g2R7MzsCvHIoI6NT8okbu6BsRigMyBAdzXC+gmURJ21GNzn+Mc9K3h7J+zEa52IrARL4hiDYr0WQw==}
+    engines: {node: '>=22'}
+
+  cortico-world-ntfy@0.1.0:
+    resolution: {integrity: sha512-fxzvCCotUUYIqckby2XCVOY9UfNEV+pXTosrvKu3+bEwn7FPbPXrIxuHlZOaI5xPITvuQNA8eWWV89k+S3xHBQ==}
     engines: {node: '>=22'}
 
   crelt@1.0.7:
@@ -3738,6 +3745,8 @@ snapshots:
   core-util-is@1.0.3: {}
 
   cortico-world-coding-agent-notify@1.2.0: {}
+
+  cortico-world-ntfy@0.1.0: {}
 
   crelt@1.0.7: {}
 

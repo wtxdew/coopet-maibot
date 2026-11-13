@@ -12,3 +12,4 @@ allowBuilds:
 
 minimumReleaseAgeExclude:
   - electron@44.4.4
+  - cortico-world-ntfy@0.1.0
