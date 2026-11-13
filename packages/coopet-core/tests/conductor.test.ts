@@ -171,6 +171,28 @@ describe('Conductor', () => {
   });
 });
 
+describe('conversation stats', () => {
+  it('counts turns and records how each ended', async () => {
+    const t = setup('open', { realThinking: true });
+    t.conductor.handle(said(1, '你好'));
+    await tick();
+    t.think(true);
+    t.incoming([{ kind: 'text', text: '在呢' }]);
+    await tick();
+    const first = t.conductor.stats();
+    expect(first.turns).toBe(1);
+    expect(first.last).toMatchObject({ cursor: 1, via: 'typed', outcome: 'replied' });
+    expect(first.last!.steps.map((x) => x.step)).toEqual(['acked', 'thinking', 'reply', 'bubble']);
+    expect(first.recent.replied).toBe(1);
+
+    t.setLink('closed');
+    t.conductor.handle(said(2, '在吗', 'desktop-pet.speech'));
+    await tick();
+    expect(t.conductor.stats()).toMatchObject({ turns: 2, last: { cursor: 2, via: 'voice', outcome: 'not-sent' } });
+    t.conductor.stop();
+  });
+});
+
 describe('with a switchable link', () => {
   /** 最小的内部连接：一直是 open，发出的消息记下来 */
   const inner = (withThinking: boolean) => {

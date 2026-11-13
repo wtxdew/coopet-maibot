@@ -7,7 +7,8 @@
  * - link 不提供（maim_message）：只能估计。发出消息就显示思考中，收到第一条回复或超时就结束；
  *   MaiBot 的 planner 常常决定不回复，超时不算出错。
  *
- * 每轮对话在日志里留一条时间线：`[对话 #游标] 步骤 +距输入的时间`，方便定位延迟。
+ * 每轮对话在日志里留一条时间线：`[对话 #游标] 步骤 +距输入的时间`，方便定位延迟；
+ * 同样的时间点也记进 TurnStats（stats()），设置窗「运行诊断」显示。
  * 回复、思考信号对不上具体是哪条消息引起的，统一按最近一次输入计时；
  * 距最近一次输入超过 TURN_WINDOW_MS 的回复记成 `[主动]`。
  */
@@ -16,6 +17,7 @@ import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
 import type { IncomingMessage, Link, LinkState } from '../link/types.ts';
 import type { PetHandle } from '../runtime/pet.ts';
 import type { HostedEvent } from '../runtime/world-host.ts';
+import { TurnStats, type ConversationStats } from './stats.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
@@ -49,11 +51,13 @@ export class Conductor {
   private readonly now: () => number;
   /** 最近一次输入：时间线以它为起点 */
   private last: { cursor: number; at: number } | null = null;
+  private readonly turnStats: TurnStats;
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
     this.timeoutMs = opts.thinkingTimeoutMs ?? 30_000;
     this.now = opts.now ?? Date.now;
+    this.turnStats = new TurnStats(this.now);
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
     opts.link.onThinking?.((on) => this.thinkingChanged(on));
@@ -75,6 +79,11 @@ export class Conductor {
     this.opts.log.debug(`事件 #${event.cursor} ${event.type} 不转发`);
   }
 
+  /** 对话统计：本次运行几轮、最近一轮的时间线、最近的回复延迟 */
+  stats(): ConversationStats {
+    return this.turnStats.snapshot();
+  }
+
   /** 退出前调用，清掉计时。 */
   stop(): void {
     this.clearTimer();
@@ -85,6 +94,7 @@ export class Conductor {
     if (!text) return;
     const { link } = this.opts;
     this.last = { cursor: event.cursor, at: this.now() };
+    this.turnStats.start(event.cursor, event.type === 'desktop-pet.speech' ? 'voice' : 'typed');
     this.trace(`输入（${event.type === 'desktop-pet.speech' ? '语音' : '打字'}）：${preview(text)}`, false);
     if (link.state() !== 'open') {
       this.trace('没连上，未发送', true, 'warn');
@@ -100,6 +110,7 @@ export class Conductor {
     }
     const real = this.realThinking;
     this.trace(real ? 'MaiBot 收下（ack）' : '已发出');
+    this.turnStats.mark(real ? 'acked' : 'sent');
     if (real) {
       // ack 成功表示 MaiBot 已收下；会不会回复、什么时候想，由 thinking 信号决定
       this.opts.pet.settled([event], 'delivered');
@@ -110,11 +121,13 @@ export class Conductor {
     this.clearTimer();
     this.timer = setTimeout(() => {
       this.trace(`${this.timeoutMs / 1000} 秒内没有回复，结束思考`);
+      this.turnStats.end('no-reply');
       this.finishTurn('delivered');
     }, this.timeoutMs);
   }
 
   private async notConnected(event: EventEnvelope): Promise<void> {
+    this.turnStats.end('not-sent');
     await this.say(`还没连上${this.opts.botName()}`);
     this.opts.pet.settled([event], 'discarded');
   }
@@ -131,17 +144,23 @@ export class Conductor {
       return;
     }
     this.trace(`回复到达（${[...text].length} 字）：${preview(text)}`);
+    this.turnStats.mark('reply');
     // TODO（ROADMAP 阶段 6）：显示前转义文字里的【】、<>、＜＞，否则会被当成动作标记吃掉
     const script = this.opts.decorate ? this.opts.decorate(text) : text;
     this.opts.pet.phase({ state: 'tools', running: ['pet_say'] });
     await this.say(script);
     this.trace('气泡显示');
+    this.turnStats.mark('bubble');
+    this.turnStats.end('replied');
     this.finishTurn('delivered');
   }
 
   private linkChanged(s: LinkState): void {
     if (s !== 'closed') return;
-    if (this.waiting.length || this.thinking) this.trace('连接断开，本轮结束', true, 'warn');
+    if (this.waiting.length || this.thinking) {
+      this.trace('连接断开，本轮结束', true, 'warn');
+      this.turnStats.end('disconnected');
+    }
     if (this.waiting.length) this.finishTurn('discarded');
     else if (this.thinking) this.finishTurn('delivered');
   }
@@ -151,9 +170,11 @@ export class Conductor {
     if (on) {
       this.thinking = true;
       this.trace('思考开始');
+      this.turnStats.mark('thinking');
       this.opts.pet.phase({ state: 'model', running: [] });
     } else {
       this.trace('思考结束（没有回复）');
+      this.turnStats.end('no-reply');
       this.finishTurn('delivered');
     }
   }
