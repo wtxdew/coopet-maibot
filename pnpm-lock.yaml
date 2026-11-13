@@ -11,6 +11,9 @@ importers:
       cortico-provider-coo:
         specifier: workspace:*
         version: link:packages/cortico-provider-coo
+      cortico-world-coding-agent-notify:
+        specifier: 1.2.0
+        version: 1.2.0
       cortico-world-desktop-pet:
         specifier: workspace:*
         version: link:packages/cortico-world-desktop-pet
@@ -1017,6 +1020,10 @@ packages:
   cookie@0.7.2:
     resolution: {integrity: sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w==}
     engines: {node: '>= 0.6'}
+
+  cortico-world-coding-agent-notify@1.2.0:
+    resolution: {integrity: sha512-WHIqFgEo+g2R7MzsCvHIoI6NT8okbu6BsRigMyBAdzXC+gmURJ21GNzn+Mc9K3h7J+zEa52IrARL4hiDYr0WQw==}
+    engines: {node: '>=22'}
 
   crelt@1.0.7:
     resolution: {integrity: sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==}
@@ -2486,6 +2493,8 @@ snapshots:
   cookie-signature@1.0.7: {}
 
   cookie@0.7.2: {}
+
+  cortico-world-coding-agent-notify@1.2.0: {}
 
   crelt@1.0.7: {}
 

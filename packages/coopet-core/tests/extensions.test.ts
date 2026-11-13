@@ -36,7 +36,7 @@ describe('loadWorldExtensions', () => {
       'index.js': `export default { id: 'desktop-pet', label: 'X', defaults: () => ({ enabled: false }), create: () => ({}) };`,
     });
     const log = consoleLogger('test', 'error');
-    const loaded = await loadWorldExtensions(coopetDirs(root), log);
+    const loaded = await loadWorldExtensions(coopetDirs(root), log, []);
     expect(loaded.worlds.map((w) => w.id)).toEqual(['demo']);
     const byName = Object.fromEntries(loaded.records.map((r) => [r.name, r]));
     expect(byName['cortico-world-demo']).toMatchObject({ loaded: true, worldId: 'demo', webUi: 'served' });
@@ -51,7 +51,24 @@ describe('loadWorldExtensions', () => {
 
   it('is empty without an extensions folder', async () => {
     const root = mkdtempSync(join(tmpdir(), 'coopet-ext-'));
-    const loaded = await loadWorldExtensions(coopetDirs(root), consoleLogger('test', 'error'));
+    const loaded = await loadWorldExtensions(coopetDirs(root), consoleLogger('test', 'error'), []);
     expect(loaded).toMatchObject({ worlds: [], records: [], webUiAssets: [] });
+  });
+});
+
+describe('bundled extensions', () => {
+  it('loads agent-notify from the installed dependency, enabled by default, and skips a user copy of it', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-ext-'));
+    addPackage(root, 'my-copy-of-notify', { main: 'index.js', cortico: { kind: 'world', api: 6 } }, {
+      'index.js': `export default { id: 'coding-agent-notify', label: 'X', defaults: () => ({ enabled: false }), create: () => ({}) };`,
+    });
+    const loaded = await loadWorldExtensions(coopetDirs(root), consoleLogger('test', 'error'));
+    expect(loaded.worlds.map((w) => w.id)).toEqual(['coding-agent-notify']);
+    expect(loaded.worlds[0].defaults()).toMatchObject({ enabled: true });
+    expect(typeof loaded.worlds[0].create).toBe('function');
+    const bundled = loaded.records.find((r) => r.name === 'cortico-world-coding-agent-notify');
+    expect(bundled).toMatchObject({ spec: 'bundled', loaded: true, version: '1.2.0', webUi: 'served' });
+    expect(loaded.records.find((r) => r.name === 'my-copy-of-notify')?.loaded).toBe(false);
+    expect(loaded.webUiAssets.map((a) => a.pageId)).toEqual(['world:coding-agent-notify']);
   });
 });

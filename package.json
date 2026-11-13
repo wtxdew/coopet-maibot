@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "cortico-provider-coo": "workspace:*",
+    "cortico-world-coding-agent-notify": "1.2.0",
     "cortico-world-desktop-pet": "workspace:*",
     "express": "^4.22.3",
     "tsx": "^4.23.15",
