@@ -147,6 +147,25 @@ export function deviceId(dirs: CoopetDirs): string {
   return id;
 }
 
+/** 写 token 文件（权限 600，先写临时文件再改名）；首尾空白去掉，空的不接受。 */
+export function writeToken(file: string, token: string): void {
+  const value = token.trim();
+  if (!value) throw new Error('token 不能为空');
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  writeFileSync(tmp, value, { mode: 0o600 });
+  renameSync(tmp, file);
+}
+
+/** token 文件存在且不是空的 */
+export function tokenSet(file: string): boolean {
+  try {
+    return readFileSync(file, 'utf8').trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
 /** 本项目在桌宠默认值上的改动：阶段 1 关掉语音识别，免得去下载语音模型。 */
 export const COOPET_PET_DEFAULTS: DeepPartial<DesktopPetConfigSection> = {
   asr: { enabled: false },

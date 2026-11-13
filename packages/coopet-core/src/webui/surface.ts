@@ -4,12 +4,14 @@
  *
  * 这里给的（其余 WebApp 功能不给，相应接口回 503 加说明）：
  * - getStatus：`/api/status`。页面读 displayName（侧边栏的名字）、loop.paused（侧边栏的运行键）；
- *   另加 Coopet 自己的 link（MaiBot 连接）和 pet（桌宠是否在桌面上），第二期的连接卡用。
+ *   另加 Coopet 自己的 link（MaiBot 连接：方式、状态、关闭原因、Bot 名字、两种 token 有没有设置）
+ *   和 pet（桌宠是否在桌面上），连接卡用。
  * - config：`/api/config`。桌宠的配置说明书（desktopPetConfigGroups），只去掉语音识别和电脑操作两组；
  *   哪些项显示由页面自己决定（Coopanion 的「习惯」页只发它显示的键）。写入前 WebApp 已用 coerceGroupValues
  *   检查过类型和范围，这里写回 config.json 后 refresh，标了 x-hot 的项马上生效。
  * - config 里另有 `companion` 组，只有 `language`（界面语言）：组名和键是 Coopanion「习惯」页写死的；
  *   选项来自 `/api/config/options/coopanion.language`（Cortico 的语言名表）。改了之后桌宠刷新，并经 onLanguage 告诉外壳。
+ * - config 里还有 `coopet.link` 组（连接 MaiBot，见 link-settings.ts）：写完后经 applyLink 换上新连接，不重启。
  * - worlds：`/api/worlds`，只有桌宠一个。
  * - webUiPageSources：页面清单里桌宠的那一页，用 Cortico 自己的 ioPageContribution 生成；
  *   面板调用（`/api/webui/providers/...`）和数据流（`/ws/providers/...`，对话页）都经它转给桌宠。
@@ -30,6 +32,7 @@ import { desktopPetConfigGroups, type DesktopPetConfigSection } from 'cortico-wo
 import type { AppPatch, CoopetConfig, CoopetDirs } from '../runtime/config.ts';
 import type { PetHandle } from '../runtime/pet.ts';
 import type { LinkState } from '../link/types.ts';
+import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from './link-settings.ts';
 
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
@@ -49,7 +52,10 @@ export interface SurfaceDeps {
   dirs: CoopetDirs;
   log: Logger;
   botName(): string;
-  link(): { kind: string; state: LinkState };
+  /** 当前连接：方式、状态、最近一次关闭的原因（'auth'、关闭码…）、Bot 名字 */
+  link(): { kind: string; state: LinkState; reason?: string; botName?: string };
+  /** 按 cfg.link 换上新连接（连接设置保存后调用） */
+  applyLink(): Promise<void>;
   /** 面板脚本目录（assets.ts 准备的） */
   webDistDir: string;
 }
@@ -129,15 +135,22 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
     getStatus: () => ({
       displayName: d.botName(),
       loop: { paused: false },
-      link: d.link(),
+      link: { ...d.link(), tokenSet: linkTokens(d.cfg) },
       pet: { onDesktop: d.pet.onDesktop() },
     }),
     config: {
       groups: (language) => [
         { group: languageGroup(language), values: { [LANGUAGE_KEY]: d.cfg.language } },
+        { group: linkGroup(language), values: linkValues(d.cfg) },
         ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
       ],
       set: (groupId, values, language) => {
+        if (groupId === LINK_GROUP) {
+          if (!saveLinkValues(values, d, language)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
+          d.log.info(`设置窗改了连接设置（${d.cfg.link.kind}），换上新连接`);
+          void d.applyLink().catch((err: unknown) => d.log.error(`换连接失败：${String(err)}`));
+          return baseLanguage(language) === 'zh' ? '已保存，正在连接' : 'Saved, connecting';
+        }
         if (groupId === LANGUAGE_GROUP) {
           const next = values[LANGUAGE_KEY] as Language | undefined;
           if (!next || next === d.cfg.language) return '没有改动';

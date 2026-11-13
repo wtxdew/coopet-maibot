@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -45,9 +45,10 @@ async function setup() {
   const webDistDir = prepareWebAssets(dirs.data, log, petDir);
 
   const onLanguage = vi.fn();
+  const applyLink = vi.fn(async () => {});
   const app = new WebApp(createSurface({
     cfg: loaded.cfg, persist: loaded.persist, persistPet, onLanguage, pet, store: new MemoryEventStore(), dirs, log,
-    botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'open' }), webDistDir,
+    botName: () => '麦麦', link: () => ({ kind: 'plugin', state: 'closed', reason: 'auth' }), applyLink, webDistDir,
   }));
   apps.push(app);
   const port = await app.start(0);
@@ -57,14 +58,17 @@ async function setup() {
     const r = await fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
     return { status: r.status, body: await r.json() as any };
   };
-  return { root, dirs, loaded, persistPet, onLanguage, pet, invoke, streams, base, port, get, post };
+  return { root, dirs, loaded, persistPet, onLanguage, applyLink, pet, invoke, streams, base, port, get, post };
 }
 
 describe('webui surface', () => {
   it('reports status and capabilities', async () => {
     const t = await setup();
     const st = await t.get('/api/status');
-    expect(st.body).toMatchObject({ displayName: '麦麦', loop: { paused: false }, link: { kind: 'plugin', state: 'open' }, pet: { onDesktop: true } });
+    expect(st.body).toMatchObject({
+      displayName: '麦麦', loop: { paused: false }, pet: { onDesktop: true },
+      link: { kind: 'plugin', state: 'closed', reason: 'auth', tokenSet: { plugin: false, maim: false } },
+    });
     const caps = (await t.get('/api/capabilities')).body.capabilities;
     expect(caps).toMatchObject({ config: true, worlds: true, avatar: true, extensions: false, run: false, prompts: false });
   });
@@ -94,6 +98,41 @@ describe('webui surface', () => {
     expect(t.onLanguage).toHaveBeenCalledWith('en');
     expect((await t.post('/api/config', { group: 'companion', values: { language: 'xx' } })).status).toBe(400);
     expect(t.loaded.cfg.language).toBe('en');
+  });
+
+  it('shows the link settings without tokens', async () => {
+    const t = await setup();
+    writeFileSync(join(t.root, 'plugin-token'), 'secret-token');
+    const r = await t.get('/api/config');
+    expect(JSON.stringify(r.body)).not.toContain('secret-token');
+    const link = (r.body.groups as Array<{ group: { id: string }; values: Record<string, unknown> }>).find((g) => g.group.id === 'coopet.link')!;
+    expect(link.values).toMatchObject({ 'link.kind': 'maim', 'link.plugin.token': '', 'link.maim.userId': 'owner' });
+    expect((await t.get('/api/status')).body.link.tokenSet).toEqual({ plugin: true, maim: false });
+  });
+
+  it('saves link settings, writes the token privately and switches the link', async () => {
+    const t = await setup();
+    const r = await t.post('/api/config', { group: 'coopet.link', values: { 'link.kind': 'plugin', 'link.plugin.url': ' ws://nas:18100/ws ', 'link.plugin.token': ' tok ', 'link.maim.token': '' } });
+    expect(r.status).toBe(200);
+    expect(r.body.result).toBe('已保存，正在连接');
+    expect(t.loaded.cfg.link.kind).toBe('plugin');
+    expect(t.loaded.cfg.link.plugin.url).toBe('ws://nas:18100/ws');
+    const file = join(t.root, 'plugin-token');
+    expect(readFileSync(file, 'utf8')).toBe('tok');
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(existsSync(join(t.root, 'token'))).toBe(false);
+    expect(t.applyLink).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a link address that is not a WebSocket one, changing nothing', async () => {
+    const t = await setup();
+    const r = await t.post('/api/config', { group: 'coopet.link', values: { 'link.plugin.url': 'http://nas', 'link.plugin.token': 'tok' } });
+    expect(r.status).toBeGreaterThanOrEqual(400);
+    expect(String(r.body.error)).toContain('ws://');
+    expect(existsSync(join(t.root, 'plugin-token'))).toBe(false);
+    expect(t.loaded.cfg.link.plugin.url).toBe('');
+    expect(t.applyLink).not.toHaveBeenCalled();
+    expect((await t.post('/api/config', { group: 'coopet.link', values: { 'link.kind': 'carrier-pigeon' } })).status).toBe(400);
   });
 
   it('writes a checked value, refreshes the pet and returns the groups', async () => {

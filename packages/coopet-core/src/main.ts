@@ -13,6 +13,7 @@ import { createDecorator } from './expr/decorate.ts';
 import { CoopetPluginLink } from './link/coopet-plugin.ts';
 import { MaimLegacyLink } from './link/maim-legacy.ts';
 import type { Link } from './link/types.ts';
+import { LinkSwitch } from './link/switch.ts';
 import { coopetDirs, deviceId, loadConfig, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
 import { openEventLog } from './runtime/event-store.ts';
 import { consoleLogger, DailyFileSink } from './runtime/log.ts';
@@ -40,10 +41,19 @@ const store = openEventLog(dirs.events, { onWriteError: (err) => log.warn(`事�
 /** 被外壳启动时才有；直接 dev 运行时为 null */
 const shell = connectSupervisor();
 
-const link = createLink(cfg, dirs, log.child('link'));
+/** 可替换：设置窗改了连接设置后换上新连接，不重启（applyLink） */
+const link = new LinkSwitch(createLink(cfg, dirs, log.child('link')));
+/** 最近一次关闭的原因（设置窗的连接卡显示）；连上后清掉 */
+let linkReason: string | undefined;
+async function applyLink(): Promise<void> {
+  linkReason = undefined;
+  await link.replace(createLink(cfg, dirs, log.child('link')));
+}
 /** 连上插件后用 MaiBot 设置里的名字；不知道时用本地配置的 botName */
 const botName = (): string => link.botName?.() ?? cfg.botName;
 link.onState((s, reason) => {
+  if (s === 'open') linkReason = undefined;
+  else if (s === 'closed' && reason && reason !== 'switching') linkReason = reason;
   log.info(`MaiBot 连接（${cfg.link.kind}）：${s}${reason ? `（${reason}）` : ''}`);
   shell?.send({ type: 'link', kind: cfg.link.kind, state: s, ...(reason ? { reason } : {}), botName: botName() });
 });
@@ -134,7 +144,8 @@ if (shell) {
   web = new WebApp(createSurface({
     cfg, persist, persistPet, pet, store, dirs, log: webLog, botName,
     onLanguage: (language) => shell.send({ type: 'language', language }),
-    link: () => ({ kind: cfg.link.kind, state: link.state() }),
+    link: () => ({ kind: cfg.link.kind, state: link.state(), ...(linkReason ? { reason: linkReason } : {}), ...(link.botName() ? { botName: link.botName() } : {}) }),
+    applyLink,
     webDistDir: prepareWebAssets(dirs.data, webLog),
   }));
   const webPort = await web.start(0);
