@@ -194,7 +194,7 @@ describe('extension world events', () => {
 });
 
 describe('notice pacing', () => {
-  const notice = (cursor: number, text: string, meta: Record<string, unknown>) => ({ event: { cursor, type: 'ntfy.message', source: 'ntfy', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text, meta } as EventEnvelope });
+  const notice = (cursor: number, text: string, meta: { topic: string }) => ({ event: { cursor, type: 'ntfy.message', source: 'ntfy', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text, meta: { ...meta, label: meta.topic, message: text } } as EventEnvelope });
 
   it('spaces notices apart and merges ones from the same source still waiting', async () => {
     vi.useFakeTimers();
@@ -207,11 +207,11 @@ describe('notice pacing', () => {
       t.conductor.worldEvent('ntfy', notice(3, '测试二', { topic: 'test' }));
       t.conductor.worldEvent('ntfy', notice(4, '测试三', { topic: 'test' }));
       await vi.advanceTimersByTimeAsync(0);
-      expect(t.calls).toEqual([{ k: 'say', script: '构建完成' }]);
+      expect(t.calls).toEqual([{ k: 'say', script: 'build：构建完成' }]);
       await vi.advanceTimersByTimeAsync(999);
       expect(t.calls).toHaveLength(1);
       await vi.advanceTimersByTimeAsync(1);
-      expect(t.calls[1]).toEqual({ k: 'say', script: '测试三（还有 2 条）' });
+      expect(t.calls[1]).toEqual({ k: 'say', script: 'test：测试三（还有 2 条）' });
       t.conductor.stop();
     } finally {
       vi.useRealTimers();

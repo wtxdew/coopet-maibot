@@ -47,6 +47,14 @@ describe('route', () => {
     expect(route(completed('好。', { route: 'off' }), R({ mode: 'pet' }), 'zh')).toMatchObject({ to: 'pet' });
   });
 
+  it('says an ntfy notice as label, title and message, and follows the topic route on rules', () => {
+    const n = (meta: Record<string, unknown>) => ev('ntfy.message', 'ntfy 话题收到一条通知……', { topic: 'build_x', label: 'build', route: 'off', ...meta });
+    expect(route(n({ title: 'CI', message: '构建 **完成**' }), R(), 'zh')).toEqual({ say: 'build：CI：构建 完成', to: 'pet' });
+    expect(route(n({ message: '好了' }), R(), 'zh')).toEqual({ say: 'build：好了', to: 'pet' });
+    expect(route(n({ message: '好了' }), R({ mode: 'rule' }), 'zh')).toEqual({ skip: 'rule-off' });
+    expect(route(n({ message: '' }), R(), 'zh')).toEqual({ skip: 'empty' });
+  });
+
   it('handles unknown notifications by their own setting', () => {
     const other = ev('rss.new_items', '请总结以下新文章并用 pet_say 告诉用户：' + 'x'.repeat(200));
     expect(route(other, R(), 'zh')).toEqual({ skip: 'no-renderer' });

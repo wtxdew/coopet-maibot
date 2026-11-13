@@ -48,6 +48,17 @@ export const RENDERERS: Readonly<Record<string, Renderer>> = {
     const head = zh ? `${agent} 完成了${project ? ` · ${project}` : ''}` : `${agent} finished${project ? ` · ${project}` : ''}`;
     return summary ? `${head}：${summary}` : head;
   },
+  /**
+   * cortico-world-ntfy（wtxdew）：订阅的 ntfy 话题来了一条通知。meta 里有 label（话题的片段名）、title、message。
+   * 说成「片段：标题：内容」，没有标题就「片段：内容」。
+   */
+  'ntfy.message': (e) => {
+    const meta = (e.meta ?? {}) as { label?: unknown; topic?: unknown; title?: unknown; message?: unknown };
+    const label = typeof meta.label === 'string' ? meta.label : typeof meta.topic === 'string' ? meta.topic : 'ntfy';
+    const message = typeof meta.message === 'string' ? meta.message : '';
+    const title = typeof meta.title === 'string' && meta.title ? `${meta.title}：` : '';
+    return message || title ? `${label}：${title}${message}` : null;
+  },
 };
 
 /** 扩展在事件里带的分类去向（rule 模式用） */
