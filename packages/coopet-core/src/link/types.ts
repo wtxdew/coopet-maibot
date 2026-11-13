@@ -41,6 +41,11 @@ export interface Link {
    * 提供了这个方法，Conductor 就用它驱动"思考中"，不再自己估计。
    */
   onThinking?(cb: (on: boolean) => void): void;
+  /**
+   * 现在有没有真实的思考信号。可替换的连接（link/switch.ts）总是有 onThinking，
+   * 由它说明里面的连接到底有没有；没有这个方法时按"有没有 onThinking"判断。
+   */
+  hasThinking?(): boolean;
   /** 连上后 MaiBot 设置里的 Bot 名字（插件在握手时下发）；不知道时为 undefined */
   botName?(): string | undefined;
 }
