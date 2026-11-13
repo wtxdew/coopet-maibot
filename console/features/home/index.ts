@@ -189,7 +189,8 @@ async function mount(ctx: PageContext): Promise<void> {
   links.classList.add('home-links');
   links.append(getKey, regionLink, ui.h('span', 'grow'), otherLink);
   model.body.append(need, picker, keyRow, quota, links, modelMsg);
-  root.append(model.el);
+  // Coopet 本地修改：不显示「连接模型」卡（Coopet 的模型在 MaiBot 里；第二期换成「连接 MaiBot」卡）
+  // root.append(model.el);
 
   /* ---------- pet ---------- */
   // whether the pet is on the desktop beside the title; the preview, sized so its buttons end just above

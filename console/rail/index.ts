@@ -326,7 +326,8 @@ export function createRail(deps: RailDeps): Rail {
   actions.append(shutdown, run, runState);
   foot.append(who, actions);
 
-  el.append(brand, nav, modeButton, foot);
+  // Coopet 本地修改：不显示「高级模式」开关（高级模式的页面 Coopet 没有后端）
+  el.append(brand, nav, foot);
 
   let paused = false;
   let runPending = false;

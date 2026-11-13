@@ -11,4 +11,9 @@ so that upstream changes can be merged. Record every sync here.
 | `console` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `console` (the settings window front end) | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-13 | AGPL-3.0-or-later |
 | `vendor/cortico` (git submodule) | [Pal-AI-Lab/Cortico](https://github.com/Pal-AI-Lab/Cortico) | `fd2cbcccac394a09d1dee2ce4eae710bd9f7458a` (0.2.14, the commit Coopanion pins) | 2026-11-12 | MIT |
 
-Local changes to vendored code: none yet.
+Local changes to vendored code (each marked `Coopet 本地修改` in the source):
+
+- `console/features/home/index.ts`: the 「连接模型」 card is not shown (Coopet's model lives in MaiBot).
+- `console/rail/index.ts`: the 「高级模式」 toggle is not shown (Coopet has no backend for the advanced pages).
+
+Coopet's own code next to vendored code: `console/coopet/` (the settings window entry).
