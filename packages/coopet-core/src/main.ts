@@ -22,6 +22,9 @@ import { connectSupervisor } from './runtime/supervisor.ts';
 import { ChatBridge } from './runtime/chat-bridge.ts';
 import { DisconnectedLink } from './link/disconnected.ts';
 import { SettingsService, type SavePatch, type TestRequest } from './settings/service.ts';
+import { WebApp } from 'cortico/web/server.ts';
+import { createSurface } from './webui/surface.ts';
+import { prepareWebAssets } from './webui/assets.ts';
 
 const PLATFORM = 'coopet';
 const CLIENT_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
@@ -70,6 +73,9 @@ const pet = await startPet({
 conductor = new Conductor({ pet, link, log: log.child('conductor'), botName, decorate: createDecorator() });
 link.start();
 
+/** 设置窗的后端（只在被外壳启动时开）：只监听 127.0.0.1，端口由系统分配 */
+let web: WebApp | null = null;
+
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
@@ -78,6 +84,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     conductor?.stop();
     await link.stop();
+    await web?.stop();
     await pet.stop();
   } finally {
     flush();
@@ -122,7 +129,15 @@ if (shell) {
   });
   // 外壳主进程没了（崩溃或被强制结束）：核心也退出，不留孤儿进程
   shell.onDisconnect(() => void shutdown('外壳断开'));
-  shell.send({ type: 'ready', petOrigin: pet.origin });
+  const webLog = log.child('webui');
+  web = new WebApp(createSurface({
+    petCfg: cfg.pet, persistPet, pet, store, dirs, log: webLog, botName,
+    link: () => ({ kind: cfg.link.kind, state: link.state() }),
+    webDistDir: prepareWebAssets(dirs.data, webLog),
+  }));
+  const webPort = await web.start(0);
+  log.info(`设置窗后端：http://127.0.0.1:${webPort}/`);
+  shell.send({ type: 'ready', petOrigin: pet.origin, webPort });
 }
 
 function createLink(config: CoopetConfig, d: CoopetDirs, linkLog: Logger): Link {
