@@ -49,6 +49,13 @@ Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 
 打开后在菜单栏（Windows 是托盘）的 Coopet 图标里选「设置…」，在「开始」页的「连接 MaiBot」里填插件地址
 （形如 `ws://<MaiBot 主机>:18100/ws`）和插件设置里的 token，点「保存并连接」。
 
+### 更新
+
+- **Windows**：自动更新（「习惯」页可以关掉）。有新版本时在后台下载，桌宠会告诉你；点「现在重启更新」，
+  或者等下次退出 Coopet，都会静默装上，不会再出现安装向导。
+- **macOS**：没有开发者签名，装不了自动更新。有新版本时，设置窗标题栏的版本号旁边会显示「vX 可更新」，
+  点开下载新的 dmg，拖进「应用程序」覆盖旧版。
+
 ### 数据放在哪
 
 - macOS：`~/Library/Application Support/Coopet`
@@ -91,6 +98,9 @@ corepack pnpm run pack       # 打包到 dist/
 
 macOS 上打出 `.dmg` 和 `.zip`（`PACK_ARCH=x64` 可以打 Intel 版）；Windows 上打出 `Coopet-Setup-<版本>.exe`
 （也可以在 macOS 上用 `PACK_PLATFORM=win32` 交叉构建）。
+
+发布：两个平台各自打包，传到同一个 GitHub Release，**连同 `latest.yml`（Windows）、`latest-mac.yml` 和 `.blockmap`**，
+自动更新靠它们找新版本。Release 要发成正式的（不勾 pre-release）：更新器和标题栏都不认 pre-release。
 
 测试和类型检查：
 
