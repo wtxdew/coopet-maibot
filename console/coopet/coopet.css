@@ -4,3 +4,6 @@
 .companion-lockup { width: 118.13px; }
 .companion-brand { width: 118.13px; }
 .is-collapsed .companion-lockup { width: 36px; }
+
+/* 连接卡：分段按钮按内容宽度，不拉满（它在 .home-picker 的第二列） */
+.home-picker > .segwrap { justify-self: start; }

@@ -36,7 +36,7 @@ export function coopetLettering(doc: Document): SVGSVGElement {
     // e：横笔穿过中线，圆弧从右端逆时针绕到右下 45°处
     `<path d="M${E_CX - 24} 110H${E_CX + 24}A24 24 0 1 0 ${E_CX + 17} 127"/>`,
     // t：竖笔从上伸部下来，底端向右弯；横笔在 x 高顶线
-    `<path d="M${T_X} 64V118A16 16 0 0 0 ${T_X + 16} 134H${T_X + 22}"/>`,
+    `<path d="M${T_X} 64V118A16 16 0 0 0 ${T_X + 16} 134H${T_X + 18}"/>`,
     `<path d="M${T_X - 16} 86H${T_X + 18}"/>`,
   ].join('');
   return svg;
