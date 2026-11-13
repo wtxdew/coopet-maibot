@@ -33,10 +33,10 @@
 
 ## 阶段 2：适配器插件（3–5 天）
 
-先只做单台设备的适配；多设备同时在线放到后面。
+先只做单台设备的适配；多设备见文末「以后再说 → 多设备」。
 
-- [x] 定稿协议 v0（`docs/PROTOCOL.md`，2026-11-12）
-- [x] 插件骨架（`plugins/coopet-adapter/`）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
+- [x] 定稿协议 v0（2026-11-12；现在在插件仓库的 `PROTOCOL.md`）
+- [x] 插件骨架（当时在 `plugins/coopet-adapter/`，现在是单独的仓库 wtxdew/maibot-coopet-adapter）：manifest、配置（端口、令牌、主人 user_id，在 MaiBot WebUI 的插件页修改）、
   自起 WS 服务、`MessageGateway` 双向收发（2026-11-12 在 NAS 上验证往返）
 - [x] replyer Hook → `thinking`（2026-11-12 真实聊天可用）
 - [x] Bot 名字改为取 MaiBot 的设置（`bot.nickname`）：插件在握手时下发，客户端本地的 `botName` 只作连不上时的后备
@@ -76,6 +76,12 @@
 - [x] 打包 Windows x64（2026-11-13：在 Windows 上原生 `pack` 并实测；也可以在 macOS 上 `PACK_PLATFORM=win32` 交叉构建；
   NSIS 按用户安装）
 - [x] 断线重连、离线提示；没确认的消息不自动重发（阶段 1、2 的 link 与 Conductor 已实现；托盘显示连接状态）
+- [x] 插件拆成单独的仓库 [wtxdew/maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（2026-11-13，
+  `git subtree split` 保留历史；协议文档一起移过去；发布 v0.1.0）
+- [ ] 插件上 MaiBot 官方插件市场（Mai-with-u/plugin-repo：开「Add Plugin」Issue，等校验和审核）
+- [ ] 外部通知：ntfy World 扩展（单独的仓库）。Coopet 用 SSE 订阅 ntfy 话题（ntfy.sh 或自己架在 NAS 上），一条空闲长连接，
+  不轮询；任何能 `curl` 的东西都能发（脚本、GitHub Actions、Home Assistant、另一台电脑上的 Claude Code hook）。
+  话题名当密码用；断线后按消息 ID 补拉。先讨论设计
 
 **完成标准**：在一台干净的机器上安装、填好地址就能用。
 
@@ -124,13 +130,23 @@
 
 ## 以后再说
 
+### 多设备（小众需求，先放下）
+
+插件现在只留一台设备在线：新设备连上时顶替旧的（旧的收到 `replaced`、以 4003 关闭，不再重连）。这是有意的设计。
+
+- 被顶替后待机、交互时抢回连接：被顶替的设备不重连，托盘显示「在另一台设备上」；在这台发文字（或会发给 MaiBot 的互动）时
+  先重连、顶掉另一台，连上后再发。纯本地的动作（拖动、换装）不触发。只改客户端
+- 设备间转发通知：例如用 Remote Control 在 Windows 上操作 Mac 的 Claude Code 会话，hook 在 Mac 上执行，通知只到 Mac 的桌宠。
+  轻量做法：不在线的设备开一个只发通知、不顶替的临时连接，插件把通知转给在线的那台；要改协议和插件。
+  ntfy 扩展做好后可以直接解决（Mac 上的 hook 发到 ntfy，在线的那台订阅）
+- 多设备同时在线（Mac 和 Win 共享同一聊天流；一台说的话同步显示到另一台）。上下文由 MaiBot 自己记录；
+  这等于把 MaiBot 当平台用，和它的逻辑相反，有明确需求再考虑
+
+### 其他
+
 - 部署说明分三种：Docker（插件端口要在 docker-compose 映射）、Windows 和 macOS 直接部署（不用额外设置）；
   目前文档只写了 Docker 的情况
-- 多设备同时在线（Mac 和 Win 共享同一聊天流；一台说的话同步显示到另一台）。上下文由 MaiBot 自己记录
-- 插件要上 MaiBot 官方插件市场时，拆成独立仓库（市场安装是克隆整个仓库，插件必须在仓库根目录），可用 `git subtree split` 保留历史
 - 改过或自己写的 World 扩展拆成单独的仓库，并标明来源和许可（例如 fork agent-notify 时注明来自 ThermalEng）；不放进客户端仓库
-- 外部服务的通知：WebHook 打到 NAS 上的插件，经现有的 WebSocket 推给桌宠；或做一个通用的订阅通道（ntfy 这类推送服务）
-
 - 不同平台的同一个人合并成一个身份（MaiBot 本体没有这个功能，需要另写 MaiBot 插件）；
   目前 coopet 上的"主人"（`owner`）和 QQ 上的账号在 MaiBot 看来是两个人，记忆和印象不共享
 - 更多自己的 World（终端、浏览器、日历…）
