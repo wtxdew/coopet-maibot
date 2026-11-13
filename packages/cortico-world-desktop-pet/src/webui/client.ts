@@ -135,7 +135,8 @@ const petPanel: WebUiPanel = {
       else if (e.phase === 'working') rt.set(t.downloading(progress(e)), 'busy', e.detail ?? '');
       else if (e.phase === 'error') rt.set(t.installFailed, 'bad', e.detail ?? '');
       else rt.set(e.supported ? t.notInstalled : t.noBuild, 'off', e.supported ? t.electronSize : '');
-      btnInstall.hidden = e.phase === 'ready' || !e.supported;
+      // Coopet 本地修改：已经在用外部窗口程序（CORTICO_DESKTOP_PET_HOST）时不需要下载运行时
+      btnInstall.hidden = e.phase === 'ready' || !e.supported || (!!w?.source && w.source !== e.path);
       btnInstall.disabled = e.phase === 'working';
       if (next.dressUrl && frame.dataset.src !== next.dressUrl) {
         frame.dataset.src = next.dressUrl;
