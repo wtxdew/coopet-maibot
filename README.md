@@ -1,13 +1,29 @@
 # Coopet
 
-Coo 风格的桌宠客户端，大脑是 [MaiBot](https://github.com/Mai-with-u/MaiBot)：桌宠住在你的桌面上，你在桌宠里说的话交给 MaiBot，
-麦麦的回复、思考状态和表情在桌宠的气泡里显示。
+让 [MaiBot](https://github.com/Mai-with-u/MaiBot)（麦麦）住到你的电脑桌面上。Mac / Windows 的桌宠客户端。
 
-- **桌宠**：基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion) 的桌宠 World（形象、换装、互动、音效）。
-- **设置窗**：Coopanion 的设置界面，开始（连接 MaiBot）、习惯、装扮、对话、World 扩展、运行诊断。
-- **World 扩展**：可以加载 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 格式的 World 扩展。内置
-  [Coding Agent 通知](https://github.com/ThermalEng/coopanion-agent-notify-world)：Claude Code、Codex 等跑完一轮任务后，桌宠告诉你。
-- **MaiBot 插件**：[maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（单独的仓库），部署在 MaiBot 那边，桌宠通过它连上来。
+Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 的 AI 桌宠）：把 Coopanion 的桌宠形象、换装、
+互动、音效和设置界面单独拆出来，去掉它自带的模型，改成连 MaiBot，**由麦麦当桌宠的大脑**。你在桌宠里说的话交给麦麦，
+麦麦的回复、思考状态和表情在桌宠的气泡和动作里显示。
+
+- **麦麦还是那个麦麦**：名字、人设、记忆、回复风格都按 MaiBot 自己的设置。桌宠只是麦麦在桌面上的一个新"平台"，
+  经 MaiBot 插件 [maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（单独的仓库）连上来。
+- **桌宠有自己的身体**：Coopanion 的桌宠 World（形象、换装、形象包导入、互动、音效）。麦麦思考时桌宠做思考动作，
+  回复按语气配上表情；戳、摸、甩桌宠在本地直接反应。
+- **设置窗**：Coopanion 的设置界面：开始（连接 MaiBot）、习惯、装扮、对话、World 扩展、运行诊断。界面跟系统语言（11 种）。
+- **可以扩展**：加载 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 格式的 **World 扩展**，给桌宠接上新的本地能力。
+  World 扩展就是一个 npm 包，按 Cortico 的契约声明工具、事件和设置面板，Coopet 负责加载、托管、在设置窗里显示面板，
+  并把扩展推出的事件交给桌宠说出来。内置 [Coding Agent 通知](https://github.com/ThermalEng/coopanion-agent-notify-world)
+  （ThermalEng）：Claude Code、Codex 等跑完一轮任务后，桌宠告诉你。也可以自己写，见下面的「World 扩展」。
+- **以后**：本地 Agent（对麦麦说"帮我打开某某"，由电脑上的 Agent 执行）、外部通知、电脑操作等。
+
+```
+┌──────────────── 你的电脑 ────────────────┐                ┌──────── MaiBot 所在主机 ────────┐
+│  Coopet                                   │   WebSocket    │                                  │
+│  桌宠窗口 ← 核心（Conductor）→ World 扩展 │ ◀───────────▶ │  maibot-coopet-adapter ⇄ MaiBot  │
+│            设置窗                         │  局域网 / VPN  │                                  │
+└───────────────────────────────────────────┘                └──────────────────────────────────┘
+```
 
 设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，进度见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -54,7 +70,11 @@ Coo 风格的桌宠客户端，大脑是 [MaiBot](https://github.com/Mai-with-u/
 /Applications/Coopet.app/Contents/MacOS/Coopet --ext list
 ```
 
-Windows 上把路径换成安装目录里的 `Coopet.exe`。扩展的代码在 Coopet 的核心进程里运行，权限和 Coopet 一样，只装你信任的扩展。
+Windows 上把路径换成安装目录里的 `Coopet.exe`。
+
+自己写扩展：照 Cortico 的 World 契约写一个包（`WorldDefinition`：describe、配置说明、可选的设置面板），开发时用
+`--ext add link:/你的扩展目录` 装本地文件夹，改完重启 Coopet 生效。扩展推出的事件按「Coopet 怎么处理它的通知」的设置路由；
+认得的事件类型（如 `coding-agent.completed`）有专门的说法，见 `packages/coopet-core/src/conductor/routing.ts`。扩展的代码在 Coopet 的核心进程里运行，权限和 Coopet 一样，只装你信任的扩展。
 Cortico 的扩展是为大模型写的，Coopet 没有自己的模型：扩展的通知按「Coopet 怎么处理它的通知」的设置让桌宠说出来，扩展的工具暂时用不上。
 
 ## 从源码构建
@@ -69,7 +89,8 @@ corepack pnpm app            # 开发运行
 corepack pnpm run pack       # 打包到 dist/
 ```
 
-macOS 上打出 `.dmg` 和 `.zip`（`PACK_ARCH=x64` 可以打 Intel 版）；Windows 安装包要在 Windows 上运行 `pack`。
+macOS 上打出 `.dmg` 和 `.zip`（`PACK_ARCH=x64` 可以打 Intel 版）；Windows 上打出 `Coopet-Setup-<版本>.exe`
+（也可以在 macOS 上用 `PACK_PLATFORM=win32` 交叉构建）。
 
 测试和类型检查：
 
