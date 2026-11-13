@@ -39,30 +39,12 @@ describe('connectSupervisor', () => {
     expect(gone).toBe(true);
   });
 
-  it('answers requests with the handler result or its error', async () => {
-    const proc = new FakeProc();
-    const sup = connectSupervisor(proc)!;
-    sup.onRequest(async (method, params) => {
-      if (method === 'boom') throw new Error('坏了');
-      return { method, params };
-    });
-    proc.emit('message', { type: 'request', id: 1, method: 'settings.get', params: { a: 1 } });
-    proc.emit('message', { type: 'request', id: 2, method: 'boom', params: null });
-    proc.emit('message', { type: 'request', id: 'x', method: 'bad' });
-    await new Promise((r) => setTimeout(r, 0));
-    expect(proc.sent).toEqual([
-      { type: 'response', id: 1, ok: true, result: { method: 'settings.get', params: { a: 1 } } },
-      { type: 'response', id: 2, ok: false, error: '坏了' },
-    ]);
-  });
-
-  it('passes chat stream messages through', () => {
+  it('drops request and chat stream messages the old settings page used', () => {
     const proc = new FakeProc();
     const got: FromShell[] = [];
     connectSupervisor(proc)!.onMessage((m) => got.push(m));
+    proc.emit('message', { type: 'request', id: 1, method: 'settings.get' });
     proc.emit('message', { type: 'chat-open', streamId: 3 });
-    proc.emit('message', { type: 'chat-message', streamId: 3, text: '{"t":"more"}' });
-    proc.emit('message', { type: 'chat-close', streamId: 3 });
-    expect(got.map((m) => m.type)).toEqual(['chat-open', 'chat-message', 'chat-close']);
+    expect(got).toEqual([]);
   });
 });

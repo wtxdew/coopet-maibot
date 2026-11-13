@@ -20,9 +20,7 @@ import { consoleLogger, DailyFileSink } from './runtime/log.ts';
 import type { Logger } from 'cortico/core/types.ts';
 import { startPet } from './runtime/pet.ts';
 import { connectSupervisor } from './runtime/supervisor.ts';
-import { ChatBridge } from './runtime/chat-bridge.ts';
 import { DisconnectedLink } from './link/disconnected.ts';
-import { SettingsService, type SavePatch, type TestRequest } from './settings/service.ts';
 import { WebApp } from 'cortico/web/server.ts';
 import { createSurface } from './webui/surface.ts';
 import { prepareWebAssets } from './webui/assets.ts';
@@ -111,37 +109,11 @@ process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 if (shell) {
-  const settings = new SettingsService({
-    cfg, persist, persistPet, pet, log: log.child('settings'),
-    makeTestLink: (req) => req.kind === 'plugin'
-      ? new CoopetPluginLink({ url: req.url, tokenFile: req.tokenFile, ...(req.token ? { token: req.token } : {}), deviceId: deviceId(dirs), deviceName: hostname(), clientVersion: CLIENT_VERSION, log: log.child('test-link') })
-      : new MaimLegacyLink({ url: req.url, tokenFile: req.tokenFile, ...(req.token ? { token: req.token } : {}), platform: PLATFORM, botAccount: cfg.link.maim.botAccount, user: { id: cfg.link.maim.userId, nickname: cfg.link.maim.userNickname }, log: log.child('test-link') }),
-  });
-  shell.onRequest(async (method, params) => {
-    const p = (params ?? {}) as Record<string, unknown>;
-    switch (method) {
-      case 'settings.get': return settings.get();
-      case 'settings.save': return settings.save(p as SavePatch);
-      case 'settings.saveToken': return settings.saveToken(p.kind === 'plugin' ? 'plugin' : 'maim', String(p.token ?? ''));
-      case 'settings.testConnection': {
-        const result = await settings.testConnection(p as unknown as TestRequest);
-        // 插件同时只接一台设备：测试连接会把正在用的连接顶掉（4003，不自动重连），测完把它接回来
-        if (link.state() === 'closed') link.start();
-        return result;
-      }
-      default: throw new Error(`不认识的请求：${method}`);
-    }
-  });
-
-  const chats = new ChatBridge((socket) => pet.openChat(socket), (m) => shell.send(m));
   shell.onMessage((m) => {
     if (m.type === 'show-pet') void pet.show();
     else if (m.type === 'hide-pet') void pet.hide();
     else if (m.type === 'toggle-pet') void pet.toggle();
-    else if (m.type === 'chat-open') chats.open(m.streamId);
-    else if (m.type === 'chat-message') chats.message(m.streamId, m.text);
-    else if (m.type === 'chat-close') chats.close(m.streamId);
-    else if (m.type === 'shutdown') { chats.closeAll(); void shutdown('外壳要求退出'); }
+    else if (m.type === 'shutdown') void shutdown('外壳要求退出');
   });
   // 外壳主进程没了（崩溃或被强制结束）：核心也退出，不留孤儿进程
   shell.onDisconnect(() => void shutdown('外壳断开'));
