@@ -55,6 +55,15 @@ export interface LogConfig {
   file: boolean;
 }
 
+/**
+ * 扩展 World 的事件怎么处理（Conductor 的路由）：
+ * - auto：有专门渲染的事件让桌宠说，其余不处理（默认）；
+ * - pet：全部让桌宠说，没有专门渲染的念正文开头；
+ * - off：只存进事件库，不处理。
+ */
+export type RouteMode = 'auto' | 'pet' | 'off';
+export const ROUTE_MODES: readonly RouteMode[] = ['auto', 'pet', 'off'];
+
 export interface CoopetConfig {
   /** 界面语言：设置窗、桌宠、托盘。没设置过时跟系统语言；MaiBot 用什么语言回复不受它影响 */
   language: Language;
@@ -63,6 +72,8 @@ export interface CoopetConfig {
   log: LogConfig;
   link: LinkConfig;
   pet: DesktopPetConfigSection;
+  /** 按 World id 的路由设置；没写的按 auto */
+  routes: Record<string, { mode: RouteMode }>;
 }
 
 export interface CoopetDirs {
@@ -185,6 +196,7 @@ interface FileShape {
 /** 桌宠以外、可以在配置窗里改的部分。 */
 export interface AppPatch {
   language?: Language;
+  routes?: Record<string, { mode: RouteMode }>;
   botName?: string;
   log?: Partial<LogConfig>;
   link?: DeepPartial<LinkConfig>;
@@ -230,6 +242,7 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
   mergeInPlace(pet, overrides.pet);
   const cfg: CoopetConfig = {
     language: isLanguage(file.language) ? file.language : systemLanguage(),
+    routes: routesFrom(file.routes),
     botName: typeof file.botName === 'string' && file.botName.trim() ? file.botName : 'MaiBot',
     log: logFrom(file.log),
     link: linkFrom(dirs, overrides.link!),
@@ -267,6 +280,9 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.botName !== undefined && (typeof patch.botName !== 'string' || !patch.botName.trim())) {
         throw new Error('botName 必须是非空字符串');
       }
+      for (const [id, route] of Object.entries(patch.routes ?? {})) {
+        if (!ROUTE_MODES.includes(route?.mode)) throw new Error(`routes.${id}.mode 只能是 ${ROUTE_MODES.join('、')}，收到：${String(route?.mode)}`);
+      }
       if (patch.language !== undefined && !isLanguage(patch.language)) {
         throw new Error(`language 不是支持的语言：${String(patch.language)}`);
       }
@@ -285,6 +301,11 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
       if (patch.language !== undefined) {
         overrides.language = patch.language;
         cfg.language = patch.language;
+      }
+      if (patch.routes !== undefined) {
+        const next = { ...routesFrom(overrides.routes), ...patch.routes };
+        overrides.routes = next;
+        cfg.routes = next;
       }
       if (patch.log) overrides.log = nextLogRaw;
       if (patch.link) overrides.link = nextLinkRaw;
@@ -319,6 +340,17 @@ export function loadConfig(dirs: CoopetDirs, opts: LoadOptions = {}): LoadedConf
 }
 
 const LEVELS: readonly LogLevel[] = ['trace', 'debug', 'info', 'warn', 'error'];
+
+/** 文件里的 routes：不认识的方式丢掉（按 auto） */
+function routesFrom(raw: unknown): Record<string, { mode: RouteMode }> {
+  const out: Record<string, { mode: RouteMode }> = {};
+  if (!isPlainObject(raw)) return out;
+  for (const [id, route] of Object.entries(raw)) {
+    const mode = isPlainObject(route) ? route.mode : undefined;
+    if (ROUTE_MODES.includes(mode as RouteMode)) out[id] = { mode: mode as RouteMode };
+  }
+  return out;
+}
 
 function logFrom(raw: unknown): LogConfig {
   const log: LogConfig = { level: 'info', file: true };

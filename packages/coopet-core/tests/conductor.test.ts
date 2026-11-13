@@ -171,6 +171,19 @@ describe('Conductor', () => {
   });
 });
 
+describe('extension world events', () => {
+  it('lets the pet say what routing renders, and ignores what it skips', async () => {
+    const t = setup('open');
+    const notice = { cursor: 9, type: 'coding-agent.completed', source: 'coding-agent-notify', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text: '……\n最终结论：\n全部完成。', meta: { agent: 'claude', workspace: '/w/coopet' } } as EventEnvelope;
+    t.conductor.worldEvent('coding-agent-notify', { event: notice });
+    t.conductor.worldEvent('rss', { event: { ...notice, type: 'rss.new_items' } });
+    await tick();
+    expect(t.calls).toEqual([{ k: 'say', script: 'Claude Code 完成了 · coopet：全部完成。' }]);
+    expect(t.sent).toEqual([]);
+    expect(t.conductor.stats().turns).toBe(0);
+  });
+});
+
 describe('conversation stats', () => {
   it('counts turns and records how each ended', async () => {
     const t = setup('open', { realThinking: true });

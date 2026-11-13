@@ -193,3 +193,18 @@ describe('world sections', () => {
     expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).worlds).toEqual({ notify: { enabled: true, port: 2, tags: ['b', 'c'] } });
   });
 });
+
+describe('routes', () => {
+  it('keeps route modes per world and refuses unknown ones', () => {
+    const root = mkdtempSync(join(tmpdir(), 'coopet-routes-'));
+    const dirs = coopetDirs(root);
+    writeFileSync(dirs.configFile, JSON.stringify({ routes: { a: { mode: 'pet' }, b: { mode: 'loud' } } }));
+    const loaded = loadConfig(dirs, { debounceMs: 0 });
+    expect(loaded.cfg.routes).toEqual({ a: { mode: 'pet' } });
+    loaded.persist({ routes: { c: { mode: 'off' } } });
+    expect(loaded.cfg.routes).toEqual({ a: { mode: 'pet' }, c: { mode: 'off' } });
+    expect(() => loaded.persist({ routes: { d: { mode: 'loud' as never } } })).toThrow(/routes.d.mode/);
+    loaded.flush();
+    expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).routes).toEqual({ a: { mode: 'pet' }, c: { mode: 'off' } });
+  });
+});

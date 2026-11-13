@@ -18,6 +18,9 @@ import type { IncomingMessage, Link, LinkState } from '../link/types.ts';
 import type { PetHandle } from '../runtime/pet.ts';
 import type { HostedEvent } from '../runtime/world-host.ts';
 import { TurnStats, type ConversationStats } from './stats.ts';
+import { route } from './routing.ts';
+import type { Language } from 'cortico/core/language.ts';
+import type { RouteMode } from '../runtime/config.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
@@ -30,6 +33,10 @@ export interface ConductorOptions {
   thinkingTimeoutMs?: number;
   /** 时间线用的时钟（毫秒），测试时替换 */
   now?: () => number;
+  /** 扩展 World 的路由设置（cfg.routes），没写的按 auto */
+  routeOf?: (worldId: string) => RouteMode;
+  /** 界面语言（渲染通知用） */
+  language?: () => Language;
 }
 
 /** 回复离最近一次输入多久以内，算作这一轮的回复 */
@@ -77,6 +84,21 @@ export class Conductor {
     }
     // 戳、摸、甩的反应由桌宠页面自己做；传给 MaiBot 见 ROADMAP 阶段 6
     this.opts.log.debug(`事件 #${event.cursor} ${event.type} 不转发`);
+  }
+
+  /**
+   * 扩展 World 推出的事件：按路由（routing.ts）决定让桌宠说什么，或者不处理。
+   * 不算一轮对话，也不发给 MaiBot（交给麦麦是以后的事）。
+   */
+  worldEvent(worldId: string, { event }: HostedEvent): void {
+    const mode = this.opts.routeOf?.(worldId) ?? 'auto';
+    const decision = route(event, mode, this.opts.language?.() ?? 'zh');
+    if ('skip' in decision) {
+      this.opts.log.debug(`[通知 · ${worldId}] #${event.cursor} ${event.type} 不处理（${decision.skip}）`);
+      return;
+    }
+    this.opts.log.info(`[通知 · ${worldId}] #${event.cursor} ${event.type} → 桌宠说：${preview(decision.say)}`);
+    void this.say(decision.say);
   }
 
   /** 对话统计：本次运行几轮、最近一轮的时间线、最近的回复延迟 */

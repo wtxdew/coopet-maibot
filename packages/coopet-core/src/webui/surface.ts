@@ -41,6 +41,7 @@ import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from '.
 import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts';
 import type { ConversationStats } from '../conductor/stats.ts';
 import type { extensionWorlds } from './extension-worlds.ts';
+import { ROUTE_OPTIONS, ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from './route-settings.ts';
 
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
@@ -191,6 +192,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
         { group: logGroup(language), values: logValues(d.cfg) },
         ...petConfigGroups(language).map((group) => ({ group, values: groupValues(group) })),
         ...(d.extensions?.configGroups(language) ?? []),
+        ...(d.extensions?.runningIds() ?? []).map((id) => ({ group: routeGroup(id, language), values: routeValues(d.cfg, id) })),
       ],
       set: (groupId, values, language) => {
         if (groupId === LOG_GROUP) {
@@ -212,6 +214,13 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
           d.log.info(`界面语言改成 ${next}`);
           d.onLanguage?.(next);
           return baseLanguage(next) === 'zh' ? '已保存' : 'Saved';
+        }
+        if (groupId.startsWith(ROUTE_PREFIX)) {
+          const worldId = groupId.slice(ROUTE_PREFIX.length);
+          if (!d.extensions?.runningIds().includes(worldId)) throw new Error(`没有这个 World：${worldId}`);
+          if (!saveRoute(worldId, values, d)) return baseLanguage(language) === 'zh' ? '没有改动' : 'No change';
+          d.log.info(`设置窗改了 ${worldId} 的通知处理方式：${d.cfg.routes[worldId]?.mode}`);
+          return baseLanguage(language) === 'zh' ? '已保存' : 'Saved';
         }
         const fromExtension = d.extensions?.setConfig(groupId, values, language);
         if (fromExtension != null) {
@@ -235,6 +244,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       },
       options: (kind, language) => (kind === LANGUAGE_OPTIONS
         ? LANGUAGES.map((value) => ({ value, label: LANGUAGE_NAMES[value] }))
+        : kind === ROUTE_OPTIONS ? routeOptions(language)
         : d.extensions?.options(kind, language) ?? []),
     },
     worlds: (language) => [worldInfo(language), ...(d.extensions?.infos(language) ?? [])],

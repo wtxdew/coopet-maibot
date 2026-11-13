@@ -128,7 +128,10 @@ export function extensionWorlds(d: ExtensionWorldsDeps) {
     return hot ? '已保存' : '已保存，部分设置要重启这个 World 后生效';
   };
 
-  return { infos, pages, configGroups, setConfig, options: d.runtime.configOptions.bind(d.runtime) };
+  /** 正在运行的扩展 World 的 id */
+  const runningIds = (): string[] => d.runtime.list().filter((s) => s.running).map((s) => s.id);
+
+  return { infos, pages, configGroups, setConfig, runningIds, options: d.runtime.configOptions.bind(d.runtime) };
 }
 
 function getPath(obj: unknown, path: string): unknown {

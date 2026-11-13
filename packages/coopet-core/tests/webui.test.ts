@@ -15,6 +15,7 @@ import { openRunlog } from '../src/runtime/runlog.ts';
 import { WorldRuntime } from '../src/runtime/worlds.ts';
 import { SecretStore } from '../src/runtime/secrets.ts';
 import { extensionWorlds } from '../src/webui/extension-worlds.ts';
+import { routeGroup } from '../src/webui/route-settings.ts';
 
 const apps: WebApp[] = [];
 afterEach(async () => { for (const a of apps.splice(0)) await a.stop(); });
@@ -305,7 +306,7 @@ describe('extension worlds in the settings window', () => {
         extensions: extensionWorlds({
           runtime, persistWorld: (id, patch) => loaded.persistWorld(id, patch),
           records: [{ name: 'cortico-world-broken', spec: '1.0.0', version: '1.0.0', kind: 'world', webUiClient: false, loaded: false, reason: () => '导入失败' }],
-          extraConfig: () => [],
+          extraConfig: (id, language) => [routeGroup(id, language)],
         }),
         activation: { set: (id, on) => runtime.set(id, on), restart: (id) => runtime.restart(id) },
       };
@@ -327,6 +328,18 @@ describe('extension worlds in the settings window', () => {
     expect(r.body.result).toBe('已保存');
     expect(t.runtime.section('demo')).toMatchObject({ greeting: 'yo' });
     expect((await t.post('/api/webui/providers/world%3Ademo/panels/main/ping', { args: [] })).status).toBe(200);
+  });
+
+  it('offers a handling setting on each extension world page and saves it', async () => {
+    const t = await withDemo();
+    const manifest = (await t.get('/api/webui/manifest')).body;
+    const page = manifest.providers.find((p: { id: string }) => p.id === 'world:demo');
+    expect(page.configGroups).toEqual(['world:demo', 'coopet.route.demo']);
+    const group = ((await t.get('/api/config')).body.groups as Array<{ group: { id: string }; values: Record<string, unknown> }>).find((g) => g.group.id === 'coopet.route.demo');
+    expect(group?.values).toEqual({ 'route.mode': 'auto' });
+    expect((await t.get('/api/config/options/coopet.route-mode')).body.options.map((o: { label: string }) => o.label)).toEqual(['自动（推荐）', '全部让桌宠说', '不处理']);
+    expect((await t.post('/api/config', { group: 'coopet.route.demo', values: { 'route.mode': 'off' } })).body.result).toBe('已保存');
+    expect(t.loaded.cfg.routes).toEqual({ demo: { mode: 'off' } });
   });
 
   it('turns an extension world off and on from the list, but not the pet', async () => {
