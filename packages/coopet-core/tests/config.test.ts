@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -206,5 +206,30 @@ describe('routes', () => {
     expect(() => loaded.persist({ routes: { d: { mode: 'loud' as never } } })).toThrow(/routes.d.mode/);
     loaded.flush();
     expect(JSON.parse(readFileSync(dirs.configFile, 'utf8')).routes).toEqual({ a: { mode: 'pet' }, c: { mode: 'off' } });
+  });
+});
+
+describe('migrateLegacyData', () => {
+  it('copies the old folder once, without electron/ and data/webui/, leaving the old one in place', async () => {
+    const { migrateLegacyData } = await import('../src/runtime/config.ts');
+    const base = mkdtempSync(join(tmpdir(), 'coopet-migrate-'));
+    const legacy = join(base, 'old');
+    const root = join(base, 'new');
+    for (const d of ['electron', 'data/webui', 'data/figures', 'extensions']) mkdirSync(join(legacy, d), { recursive: true });
+    writeFileSync(join(legacy, 'config.json'), '{"botName":"x"}');
+    writeFileSync(join(legacy, 'plugin-token'), 't');
+    writeFileSync(join(legacy, 'electron', 'Cookies'), 'c');
+    writeFileSync(join(legacy, 'data', 'figures', 'a.png'), 'p');
+    expect(migrateLegacyData(root, legacy)).toBe(true);
+    expect(readFileSync(join(root, 'config.json'), 'utf8')).toBe('{"botName":"x"}');
+    expect(existsSync(join(root, 'plugin-token'))).toBe(true);
+    expect(existsSync(join(root, 'data', 'figures', 'a.png'))).toBe(true);
+    expect(existsSync(join(root, 'electron'))).toBe(false);
+    expect(existsSync(join(root, 'data', 'webui'))).toBe(false);
+    expect(existsSync(join(legacy, 'config.json'))).toBe(true);
+    // 新目录已有配置：不再拷
+    writeFileSync(join(legacy, 'config.json'), '{"botName":"changed"}');
+    expect(migrateLegacyData(root, legacy)).toBe(false);
+    expect(migrateLegacyData(legacy, legacy)).toBe(false);
   });
 });

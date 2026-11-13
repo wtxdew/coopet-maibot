@@ -1,6 +1,6 @@
 /**
- * 安装、卸载、列出 World 扩展。扩展目录是 `~/.config/coopet/extensions/`（设了 COOPET_DATA_DIR 时用它下面的
- * extensions/），结构和 Cortico 一样：package.json 的 dependencies 加 node_modules，由 pnpm 管理。
+ * 安装、卸载、列出 World 扩展。扩展目录是数据目录下的 `extensions/`（数据目录的算法和核心的 defaultDataRoot 一样：
+ * COOPET_DATA_DIR，否则 macOS `~/Library/Application Support/Coopet`、Windows `%APPDATA%\Coopet`），结构和 Cortico 一样：package.json 的 dependencies 加 node_modules，由 pnpm 管理。
  * 装完、卸完要重启 Coopet，核心启动时才加载（runtime/extensions.ts）。
  *
  *   corepack pnpm run ext list
@@ -15,7 +15,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const root = process.env.COOPET_DATA_DIR || join(homedir(), '.config', 'coopet');
+function defaultDataRoot(platform = process.platform, env = process.env, home = homedir()) {
+  if (env.COOPET_DATA_DIR) return env.COOPET_DATA_DIR;
+  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Coopet');
+  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Coopet');
+  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'coopet');
+}
+const root = defaultDataRoot();
 const dir = join(root, 'extensions');
 const [cmd, ...args] = process.argv.slice(2);
 

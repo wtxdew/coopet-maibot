@@ -14,7 +14,7 @@ import { CoopetPluginLink } from './link/coopet-plugin.ts';
 import { MaimLegacyLink } from './link/maim-legacy.ts';
 import type { Link } from './link/types.ts';
 import { LinkSwitch } from './link/switch.ts';
-import { coopetDirs, deviceId, loadConfig, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
+import { coopetDirs, deviceId, LEGACY_DATA_ROOT, loadConfig, migrateLegacyData, type CoopetConfig, type CoopetDirs } from './runtime/config.ts';
 import { openEventLog } from './runtime/event-store.ts';
 import { consoleLogger, DailyFileSink, switchableSink } from './runtime/log.ts';
 import { openRunlog } from './runtime/runlog.ts';
@@ -36,6 +36,8 @@ const PLATFORM = 'coopet';
 const CLIENT_VERSION = (JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 const dirs = coopetDirs();
+// 数据目录换成各系统的惯例位置后，第一次启动时把 ~/.config/coopet 的内容拷贝过来（旧目录原样保留）
+const migratedFrom = migrateLegacyData(dirs.root) ? LEGACY_DATA_ROOT : null;
 // 读配置时还不知道日志级别和要不要写文件：这一步的提示只写到终端
 const { cfg, persistPet, persist, flush, worldSection, persistWorld } = loadConfig(dirs, { log: consoleLogger('coopet') });
 // 本次运行的结构化日志（设置窗「运行诊断」读它），和 Cortico 的格式一致
@@ -43,6 +45,7 @@ const runlog = openRunlog(dirs.data);
 // 级别和写不写文本文件每次现读配置：设置窗里改了马上生效
 const log = consoleLogger('coopet', () => cfg.log.level, [switchableSink(new DailyFileSink(dirs.logs), () => cfg.log.file), runlog.sink]);
 log.info(`Coopet 启动（v${CLIENT_VERSION}，运行 ${runlog.runId}，连接方式 ${cfg.link.kind}，日志级别 ${cfg.log.level}${cfg.log.file ? `，日志文件 ${dirs.logs}` : ''}）`);
+if (migratedFrom) log.info(`已把 ${migratedFrom} 的数据拷贝到 ${dirs.root}（旧目录原样保留，确认没问题后可以自己删掉）`);
 // 事件写进文件，重启后对话页还能看到以前的记录
 const store = openEventLog(dirs.events, { onWriteError: (err) => log.warn(`事件记录写不了（${dirs.events}），之后只留在内存里：${err.message}`) });
 

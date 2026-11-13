@@ -9,7 +9,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { DeepPartial } from 'cortico/world.ts';
@@ -94,8 +94,35 @@ export interface CoopetDirs {
   events: string;
 }
 
-/** 阶段 1 先用 ~/.config/coopet，Mac 和 Windows 都可用；阶段 3 再换成各系统的惯例位置。 */
-export function coopetDirs(root = join(homedir(), '.config', 'coopet')): CoopetDirs {
+/** 打包之前用的数据目录；第一次在新位置启动时从这里拷贝（migrateLegacyData） */
+export const LEGACY_DATA_ROOT = join(homedir(), '.config', 'coopet');
+
+/**
+ * 数据目录：设了 COOPET_DATA_DIR 就用它；否则按各系统的惯例——
+ * macOS `~/Library/Application Support/Coopet`，Windows `%APPDATA%\Coopet`，其他 `$XDG_CONFIG_HOME/coopet`（默认 ~/.config/coopet）。
+ * 外壳的 paths.cjs 和 scripts/ext.mjs 各有一份同样的写法（coopet-app 的测试核对三处一致）。
+ */
+export function defaultDataRoot(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  if (env.COOPET_DATA_DIR) return env.COOPET_DATA_DIR;
+  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Coopet');
+  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Coopet');
+  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'coopet');
+}
+
+/**
+ * 第一次在新的数据目录启动时，把旧目录（~/.config/coopet）的内容拷贝过来：只拷贝、不移动、不删除。
+ * 条件：两个目录不同、新目录还没有 config.json、旧目录有。不拷 electron/（Chromium 的配置，里面有套接字文件）
+ * 和 data/webui/（每次启动重新生成）。返回拷没拷。
+ */
+export function migrateLegacyData(root: string, legacy = LEGACY_DATA_ROOT): boolean {
+  if (root === legacy || existsSync(join(root, 'config.json')) || !existsSync(join(legacy, 'config.json'))) return false;
+  const skip = new Set([join(legacy, 'electron'), join(legacy, 'data', 'webui')]);
+  mkdirSync(root, { recursive: true });
+  cpSync(legacy, root, { recursive: true, verbatimSymlinks: true, filter: (src) => !skip.has(src) });
+  return true;
+}
+
+export function coopetDirs(root = defaultDataRoot()): CoopetDirs {
   const data = join(root, 'data');
   return {
     root,
