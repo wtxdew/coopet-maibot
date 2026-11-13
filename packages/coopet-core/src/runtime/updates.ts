@@ -5,9 +5,11 @@
  * - 正在下载：「好」，第二个按钮悬停时显示"前往 GitHub 手动下载"；
  * - 已下载：「现在重启更新」→ 告诉外壳安装（静默安装后重新打开）；「下次再说」→ 退出时自动装；
  * - 下载失败：「前往 GitHub 下载」→ 外壳打开 Release 页面。
+ * 收到哪一步、气泡说了没有、点了哪个按钮都记进日志（log）。
  */
 
 import { baseLanguage, type Language } from 'cortico/core/language.ts';
+import type { Logger } from 'cortico/core/types.ts';
 import type { PetHandle } from './pet.ts';
 
 export interface UpdateStep { phase: 'downloading' | 'ready' | 'failed'; version: string; reason?: string }
@@ -47,6 +49,7 @@ export function sayUpdates(opts: {
   language: () => Language;
   install: () => void;
   releases: () => void;
+  log?: Pick<Logger, 'info'>;
   everyMs?: number;
 }): { take(step: UpdateStep | null): void; stop(): void } {
   let pending: UpdateStep | null = null;
@@ -67,11 +70,13 @@ export function sayUpdates(opts: {
     dialog?.close();
     const shown = p.dialog({ text, actions: [step.phase === 'failed' ? 'sad' : 'happy'], closable: true, input: { kind: 'buttons', options } });
     dialog = shown;
+    opts.log?.info(`更新气泡：${step.phase} ${step.version}`);
     void shown.answer.then((a) => {
       if (dialog !== shown) return;
       dialog = null;
       // 桌宠页面这时不在：等它回来再说
-      if ('unavailable' in a) { pending ??= step; return; }
+      if ('unavailable' in a) { opts.log?.info('更新气泡：桌宠页面不在，等它回来再说'); pending ??= step; return; }
+      opts.log?.info(`更新气泡（${step.phase} ${step.version}）的回答：${JSON.stringify(a)}`);
       if (!('index' in a)) return;
       if ((step.phase === 'downloading' && a.index === 1) || (step.phase === 'failed' && a.index === 0)) opts.releases();
       if (step.phase === 'ready' && a.index === 0) opts.install();
@@ -81,6 +86,7 @@ export function sayUpdates(opts: {
 
   return {
     take(step) {
+      opts.log?.info(step ? `更新：${step.phase} ${step.version}${step.reason ? `（${step.reason}）` : ''}` : '更新：取消');
       if (!step) {
         pending = null;
         said.clear();

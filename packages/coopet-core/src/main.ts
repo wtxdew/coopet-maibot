@@ -130,6 +130,7 @@ const updates = shell ? sayUpdates({
   language: () => cfg.language,
   install: () => shell.send({ type: 'update-install' }),
   releases: () => shell.send({ type: 'releases' }),
+  log: log.child('update'),
 }) : null;
 
 let stopping = false;
