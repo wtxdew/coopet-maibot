@@ -74,7 +74,8 @@ const pet = await startPet({
   ...(shell ? {
     controls: {
       quit: () => shell.send({ type: 'quit' }),
-      quitLabel: '退出 Coopet',
+      // 跟着界面语言：中文（简繁）显示中文，其他显示英文
+      quitLabel: () => (cfg.language === 'zh' || cfg.language === 'zh-Hant' ? '退出 Coopet' : 'Quit Coopet'),
       openSettings: () => shell.send({ type: 'open-settings' }),
     },
   } : {}),

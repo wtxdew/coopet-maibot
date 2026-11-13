@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const { statusText, trayTemplate } = require('../tray-menu.cjs');
 
-const base = { core: 'running', link: { kind: 'plugin', state: 'open', botName: '麦麦' }, onDesktop: true, petOrigin: 'http://127.0.0.1:7797', loginItem: false, loginItemAvailable: true };
+const base = { core: 'running', link: { kind: 'plugin', state: 'open', botName: '麦麦' }, onDesktop: true, petOrigin: 'http://127.0.0.1:7797', loginItem: false, loginItemAvailable: true, language: 'zh' };
 const actions = () => ({ openSettings: vi.fn(), togglePet: vi.fn(), openDress: vi.fn(), setLoginItem: vi.fn(), openLogs: vi.fn(), restartCore: vi.fn(), quit: vi.fn() });
 
 describe('statusText', () => {
@@ -47,5 +47,15 @@ describe('trayTemplate', () => {
     const items = trayTemplate({ ...base, loginItemAvailable: false }, actions());
     const login = items.find((i: any) => String(i.label).startsWith('开机自启'));
     expect(login).toMatchObject({ label: '开机自启（打包后可用）', enabled: false });
+  });
+});
+
+describe('tray language', () => {
+  it('shows English for English and other non-Chinese languages', () => {
+    const labels = (language: string) => trayTemplate({ ...base, language }, actions()).map((i: { label?: string }) => i.label).filter(Boolean);
+    expect(labels('en')).toContain('Settings…');
+    expect(labels('ja')).toContain('Quit Coopet');
+    expect(labels('zh-Hant')).toContain('设置…');
+    expect(statusText({ ...base, language: 'en', link: { kind: 'plugin', state: 'closed', reason: 'auth' } })).toBe('MaiBot not connected: wrong token');
   });
 });

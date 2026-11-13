@@ -10,6 +10,7 @@
  *   petOrigin: string | null,
  *   loginItem: boolean,
  *   loginItemAvailable: boolean,
+ *   language: string,
  * }} TrayState
  * @typedef {{
  *   openSettings: () => void,
@@ -23,28 +24,69 @@
  * @typedef {{ label?: string, type?: 'normal' | 'separator' | 'checkbox', enabled?: boolean, checked?: boolean, click?: () => void }} MenuItem
  */
 
-const LINK_REASON = {
-  auth: 'token 不对',
-  token: '没有 token 文件',
-  protocol: '协议版本不一致',
-  replaced: '被另一台设备顶替',
-  'no-url': '还没填地址',
-  stopped: '已停止',
+/** 托盘菜单的文字：中文和英文，其他语言用英文（和设置窗处理缺少的翻译一样） */
+const TEXT = {
+  zh: {
+    reasons: /** @type {Record<string, string>} */ ({
+      auth: 'token 不对', token: '没有 token 文件', protocol: '协议版本不一致', replaced: '被另一台设备顶替', 'no-url': '还没填地址', stopped: '已停止',
+    }),
+    code: (/** @type {string} */ c) => `关闭码 ${c}`,
+    failed: '核心多次崩溃，已停止',
+    starting: '核心启动中…',
+    connecting: '正在连接 MaiBot…',
+    plugin: '插件',
+    open: (/** @type {string} */ bot, /** @type {string} */ via) => `已连上 ${bot}（${via}）`,
+    closed: (/** @type {string} */ why) => `MaiBot 未连接${why ? `：${why}` : ''}`,
+    settings: '设置…',
+    hidePet: '隐藏桌宠',
+    showPet: '显示桌宠',
+    dress: '装扮…',
+    loginItem: '开机自启',
+    loginItemLater: '开机自启（打包后可用）',
+    logs: '打开日志文件夹',
+    restartCore: '重新启动核心',
+    quit: '退出 Coopet',
+  },
+  en: {
+    reasons: /** @type {Record<string, string>} */ ({
+      auth: 'wrong token', token: 'no token file', protocol: 'protocol version mismatch', replaced: 'replaced by another device', 'no-url': 'no address yet', stopped: 'stopped',
+    }),
+    code: (/** @type {string} */ c) => `close code ${c}`,
+    failed: 'The core crashed repeatedly and stopped',
+    starting: 'Starting the core…',
+    connecting: 'Connecting to MaiBot…',
+    plugin: 'plugin',
+    open: (/** @type {string} */ bot, /** @type {string} */ via) => `Connected to ${bot} (${via})`,
+    closed: (/** @type {string} */ why) => `MaiBot not connected${why ? `: ${why}` : ''}`,
+    settings: 'Settings…',
+    hidePet: 'Hide the pet',
+    showPet: 'Show the pet',
+    dress: 'Dress up…',
+    loginItem: 'Start at login',
+    loginItemLater: 'Start at login (in the packaged app)',
+    logs: 'Open the log folder',
+    restartCore: 'Restart the core',
+    quit: 'Quit Coopet',
+  },
 };
+
+/** @param {string} language */
+const textOf = (language) => (language === 'zh' || language === 'zh-Hant' ? TEXT.zh : TEXT.en);
 
 /**
  * 菜单顶部的状态行
  * @param {TrayState} s
  */
 function statusText(s) {
-  if (s.core === 'failed') return '核心多次崩溃，已停止';
-  if (s.core !== 'running') return '核心启动中…';
+  const t = textOf(s.language);
+  if (s.core === 'failed') return t.failed;
+  if (s.core !== 'running') return t.starting;
   const link = s.link;
-  if (!link || link.state === 'connecting') return '正在连接 MaiBot…';
-  const via = link.kind === 'plugin' ? '插件' : 'maim_message';
-  if (link.state === 'open') return `已连上 ${link.botName || 'MaiBot'}（${via}）`;
-  const reason = link.reason ? (/** @type {Record<string, string>} */ (LINK_REASON)[link.reason] ?? `关闭码 ${link.reason}`) : '';
-  return `MaiBot 未连接${reason ? `：${reason}` : ''}`;
+  if (!link || link.state === 'connecting') return t.connecting;
+  const via = link.kind === 'plugin' ? t.plugin : 'maim_message';
+  if (link.state === 'open') return t.open(link.botName || 'MaiBot', via);
+  const reason = link.reason ? (t.reasons[link.reason] ?? t.code(link.reason)) : '';
+  return t.closed(reason);
 }
 
 /**
@@ -53,24 +95,25 @@ function statusText(s) {
  * @returns {MenuItem[]}
  */
 function trayTemplate(s, a) {
+  const t = textOf(s.language);
   const running = s.core === 'running';
   /** @type {MenuItem[]} */
   const items = [
     { label: statusText(s), enabled: false },
     { type: 'separator' },
-    { label: '设置…', click: a.openSettings },
-    { label: s.onDesktop ? '隐藏桌宠' : '显示桌宠', enabled: running, click: a.togglePet },
-    { label: '装扮…', enabled: running && !!s.petOrigin, click: a.openDress },
+    { label: t.settings, click: a.openSettings },
+    { label: s.onDesktop ? t.hidePet : t.showPet, enabled: running, click: a.togglePet },
+    { label: t.dress, enabled: running && !!s.petOrigin, click: a.openDress },
     { type: 'separator' },
     {
-      label: s.loginItemAvailable ? '开机自启' : '开机自启（打包后可用）',
+      label: s.loginItemAvailable ? t.loginItem : t.loginItemLater,
       type: 'checkbox', checked: s.loginItem, enabled: s.loginItemAvailable,
       click: () => a.setLoginItem(!s.loginItem),
     },
-    { label: '打开日志文件夹', click: a.openLogs },
+    { label: t.logs, click: a.openLogs },
   ];
-  if (s.core === 'failed') items.push({ label: '重新启动核心', click: a.restartCore });
-  items.push({ type: 'separator' }, { label: '退出 Coopet', click: a.quit });
+  if (s.core === 'failed') items.push({ label: t.restartCore, click: a.restartCore });
+  items.push({ type: 'separator' }, { label: t.quit, click: a.quit });
   return items;
 }
 

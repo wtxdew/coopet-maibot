@@ -56,7 +56,7 @@ function runApp() {
     log: (msg) => console.log(`[core-host] ${msg}`),
   });
 
-  /** @type {import('./tray-menu.cjs').TrayState & { webPort: number | null, language: string }} */
+  /** @type {import('./tray-menu.cjs').TrayState & { webPort: number | null }} */
   const state = {
     core: 'stopped',
     link: null,
@@ -108,6 +108,11 @@ function runApp() {
       state.webPort = typeof m.webPort === 'number' ? m.webPort : null;
       if (typeof m.language === 'string') state.language = m.language;
       if (restarted) settings?.coreRestarted();
+    }
+    else if (m?.type === 'language' && typeof m.language === 'string') {
+      // 托盘菜单下次打开时用新语言；设置窗重新加载
+      state.language = m.language;
+      settings?.reload();
     }
     else if (m?.type === 'link') state.link = { kind: m.kind, state: m.state, reason: m.reason, botName: m.botName };
     else if (m?.type === 'pet') state.onDesktop = !!m.onDesktop;
