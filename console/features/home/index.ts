@@ -33,6 +33,7 @@ import {
   type ConnectResult, type Region, type Status, type Vendor,
 } from './model.ts';
 import { S } from './strings.ts';
+import { connectionCard } from '../../coopet/connection-card.ts'; // Coopet 本地修改
 
 const PET_PAGE = 'world:desktop-pet';
 
@@ -189,8 +190,9 @@ async function mount(ctx: PageContext): Promise<void> {
   links.classList.add('home-links');
   links.append(getKey, regionLink, ui.h('span', 'grow'), otherLink);
   model.body.append(need, picker, keyRow, quota, links, modelMsg);
-  // Coopet 本地修改：不显示「连接模型」卡（Coopet 的模型在 MaiBot 里；第二期换成「连接 MaiBot」卡）
-  // root.append(model.el);
+  // Coopet 本地修改：不显示「连接模型」卡（Coopet 的模型在 MaiBot 里），换成「连接 MaiBot」卡
+  const coopetLink = connectionCard(ctx);
+  root.append(coopetLink);
 
   /* ---------- pet ---------- */
   // whether the pet is on the desktop beside the title; the preview, sized so its buttons end just above
@@ -227,7 +229,7 @@ async function mount(ctx: PageContext): Promise<void> {
   ctx.lifecycle.add(() => themeWatch.disconnect());
   const fit = new ResizeObserver(fitPreview);
   fit.observe(root);
-  fit.observe(model.el);
+  fit.observe(coopetLink); // Coopet 本地修改：原来是 model.el
   ctx.lifecycle.add(() => fit.disconnect());
 
   /* ---------- behaviour ---------- */

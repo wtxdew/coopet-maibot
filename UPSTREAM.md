@@ -13,7 +13,7 @@ so that upstream changes can be merged. Record every sync here.
 
 Local changes to vendored code (each marked `Coopet 本地修改` in the source):
 
-- `console/features/home/index.ts`: the 「连接模型」 card is not shown (Coopet's model lives in MaiBot).
+- `console/features/home/index.ts`: the 「连接 MaiBot」 card (`console/coopet/connection-card.ts`) takes the 「连接模型」 card's place, and the pet preview's height follows it (Coopet's model lives in MaiBot).
 - `console/rail/index.ts`: the 「高级模式」 toggle is not shown (Coopet has no backend for the advanced pages).
 
-Coopet's own code next to vendored code: `console/coopet/` (the settings window entry).
+Coopet's own code next to vendored code: `console/coopet/` (the settings window entry, the connection card).
