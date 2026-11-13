@@ -171,6 +171,8 @@ Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）
 
 ### 4.3 插件（coopet-adapter）
 
+插件在单独的仓库：[wtxdew/maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（2026-11-13 从本仓库拆出，为了上 MaiBot 插件市场）。
+
 - manifest：`plugin_type: "adapter"`，`host_application.min_version: "1.4.3"`，`sdk.min_version: "2.22.0"`（以后按需放宽）。
 - 出站：`@MessageGateway(name="coopet_gateway", route_type="duplex", platform="coopet")`，消息段转成客户端协议，广播给所有在线连接。
 - 入站：客户端消息 → `ctx.gateway.route_message(...)`，固定主人 `user_id`、私聊。
@@ -179,7 +181,7 @@ Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）
 - LLM 代理：客户端发 `llm.request{messages, tools, task}` → 插件调 `ctx.llm.generate_with_tools` → 回 `llm.result`。
 - 安全：令牌鉴权；只在局域网或 Tailscale 开放，不暴露公网。
 
-### 4.4 客户端 ↔ 插件协议（v0 草案，阶段 2 定稿为 `docs/PROTOCOL.md`）
+### 4.4 客户端 ↔ 插件协议（v0 草案，阶段 2 定稿，现在在插件仓库的 [PROTOCOL.md](https://github.com/wtxdew/maibot-coopet-adapter/blob/master/PROTOCOL.md)）
 
 JSON over WebSocket，`{type, id?, ...}`：
 

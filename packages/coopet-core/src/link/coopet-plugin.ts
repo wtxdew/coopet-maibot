@@ -1,5 +1,5 @@
 /**
- * Link 的插件实现：连 coopet-adapter 插件，说协议 v0（docs/PROTOCOL.md）。
+ * Link 的插件实现：连 coopet-adapter 插件，说协议 v0（https://github.com/wtxdew/maibot-coopet-adapter/blob/master/PROTOCOL.md）。
  *
  * - 握手：WS 打开后发 hello，收到 welcome 才算 open；welcome 带 Bot 名字和身份。
  * - 发消息：chat 带 UUID，等对应的 ack（10 秒），ok 才算 MaiBot 收下。

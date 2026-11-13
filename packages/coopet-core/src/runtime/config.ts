@@ -17,7 +17,7 @@ import type { Logger, LogLevel } from 'cortico/core/types.ts';
 import { isLanguage, systemLanguage, type Language } from 'cortico/core/language.ts';
 import { DESKTOP_PET_DEFAULTS, type DesktopPetConfigSection } from 'cortico-world-desktop-pet';
 
-/** 经 coopet-adapter 插件连接（协议 v0，docs/PROTOCOL.md）。身份和 Bot 名字由插件下发。 */
+/** 经 coopet-adapter 插件连接（协议 v0，https://github.com/wtxdew/maibot-coopet-adapter/blob/master/PROTOCOL.md）。身份和 Bot 名字由插件下发。 */
 export interface PluginLinkConfig {
   /** 插件的 WS 地址，例如 `ws://<MaiBot 主机>:18100/ws` */
   url: string;

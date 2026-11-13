@@ -7,7 +7,7 @@ Coo 风格的桌宠客户端，大脑是 [MaiBot](https://github.com/Mai-with-u/
 - **设置窗**：Coopanion 的设置界面，开始（连接 MaiBot）、习惯、装扮、对话、World 扩展、运行诊断。
 - **World 扩展**：可以加载 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 格式的 World 扩展。内置
   [Coding Agent 通知](https://github.com/ThermalEng/coopanion-agent-notify-world)：Claude Code、Codex 等跑完一轮任务后，桌宠告诉你。
-- **MaiBot 插件**：[`plugins/coopet-adapter`](plugins/coopet-adapter/README.md)，部署在 MaiBot 那边，桌宠通过它连上来。
+- **MaiBot 插件**：[maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（单独的仓库），部署在 MaiBot 那边，桌宠通过它连上来。
 
 设计见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，进度见 [docs/ROADMAP.md](docs/ROADMAP.md)。
 
@@ -15,7 +15,7 @@ Coo 风格的桌宠客户端，大脑是 [MaiBot](https://github.com/Mai-with-u/
 
 ### 1. 在 MaiBot 上装插件
 
-照 [`plugins/coopet-adapter/README.md`](plugins/coopet-adapter/README.md) 做：拷贝插件目录、（Docker 部署时）映射端口、
+照 [maibot-coopet-adapter 的 README](https://github.com/wtxdew/maibot-coopet-adapter#安装) 做：在 MaiBot 的插件市场安装（或克隆到插件目录）、（Docker 部署时）映射端口、
 在 MaiBot WebUI 的插件页填 token 并启用。
 
 ### 2. 装桌宠客户端
