@@ -56,7 +56,7 @@ function runApp() {
     log: (msg) => console.log(`[core-host] ${msg}`),
   });
 
-  /** @type {import('./tray-menu.cjs').TrayState & { webPort: number | null }} */
+  /** @type {import('./tray-menu.cjs').TrayState & { webPort: number | null, language: string }} */
   const state = {
     core: 'stopped',
     link: null,
@@ -64,6 +64,8 @@ function runApp() {
     petOrigin: null,
     /** 设置窗后端（核心里的 Cortico WebApp）的端口，核心 ready 时报上来 */
     webPort: null,
+    /** 界面语言，核心 ready 时报上来、改了时再报 */
+    language: 'zh',
     loginItem: false,
     loginItemAvailable: app.isPackaged,
   };
@@ -104,6 +106,7 @@ function runApp() {
       const restarted = state.webPort !== null && state.webPort !== m.webPort;
       state.petOrigin = m.petOrigin;
       state.webPort = typeof m.webPort === 'number' ? m.webPort : null;
+      if (typeof m.language === 'string') state.language = m.language;
       if (restarted) settings?.coreRestarted();
     }
     else if (m?.type === 'link') state.link = { kind: m.kind, state: m.state, reason: m.reason, botName: m.botName };
@@ -131,7 +134,14 @@ function runApp() {
     if (process.platform === 'darwin') app.dock?.hide();
     if (state.loginItemAvailable) state.loginItem = app.getLoginItemSettings().openAtLogin;
     // 旧的手写设置页（settings-window.cjs）第二期删除，现在已不再打开
-    settings = createConsoleWindow({ corePort: () => state.webPort, petOrigin: () => state.petOrigin, log });
+    settings = createConsoleWindow({
+      corePort: () => state.webPort,
+      petOrigin: () => state.petOrigin,
+      language: () => state.language,
+      loginItem: { available: () => state.loginItemAvailable, get: () => state.loginItem, set: (on) => { setLoginItem(on); } },
+      sizeFile: join(ELECTRON_DATA_DIR, 'console-size.json'),
+      log,
+    });
     tray = createTray(() => state, {
       openSettings: () => settings?.open(),
       // 由核心按桌宠的实时状态决定显示还是隐藏：托盘记的状态可能落后（例如从桌宠自己的菜单隐藏过）
