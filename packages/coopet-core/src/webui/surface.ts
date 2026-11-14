@@ -47,10 +47,8 @@ import { ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from '
 export const PET_WORLD_ID = 'desktop-pet';
 /** 说明书里键的前缀：`worlds.desktop-pet.window.scale` → cfg.pet.window.scale */
 const PET_PREFIX = `worlds.${PET_WORLD_ID}.`;
-/** 不放进页面清单的桌宠面板：语音输入（语音识别还没接） */
-const HIDDEN_PANELS = new Set(['voice']);
-/** 不交给设置窗的组：语音识别（还没接）、电脑操作（阶段 5，有风险，默认关闭） */
-const HIDDEN_GROUP_SUFFIXES = [':asr', ':cua'];
+/** 不交给设置窗的组：电脑操作（阶段 5，有风险，默认关闭） */
+const HIDDEN_GROUP_SUFFIXES = [':cua'];
 
 export interface SurfaceDeps {
   /** 活的配置对象 */
@@ -121,12 +119,12 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
   };
 
   /**
-   * 桌宠的页面声明，只留桌宠窗口那盏状态灯：灯没有 id，桌宠按固定顺序给（窗口、语音识别、开了电脑操作时还有一盏），
-   * 语音识别和电脑操作都没接，不显示。
+   * 桌宠的页面声明，只留桌宠窗口和语音识别两盏状态灯：灯没有 id，桌宠按固定顺序给（窗口、语音识别、开了电脑操作时还有一盏），
+   * 电脑操作没接，不显示。
    */
   const petDecl = (language: Language) => {
     const decl = d.pet.webUi(language);
-    return decl.lamps?.length ? { ...decl, lamps: decl.lamps.slice(0, 1) } : decl;
+    return decl.lamps?.length ? { ...decl, lamps: decl.lamps.slice(0, 2) } : decl;
   };
 
   const worldInfo = (language: Language): WebUiWorldInfo => {
@@ -155,7 +153,6 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       const world = { webUi: (lang?: Language) => petDecl(lang ?? language) } as unknown as World;
       const page = ioPageContribution(PET_WORLD_ID, info.label ?? PET_WORLD_ID, { ...info, prefixDrifted: false }, world, language);
       delete page.promptDocs;
-      if (page.panels) page.panels = page.panels.filter((panel) => !HIDDEN_PANELS.has(panel.id));
       return page;
     },
   };

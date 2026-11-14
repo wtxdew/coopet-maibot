@@ -91,15 +91,23 @@ describe('webui surface', () => {
     });
   });
 
-  it('lists the pet config groups without speech recognition and computer use', async () => {
+  it('lists the pet config groups with speech recognition, without computer use', async () => {
     const t = await setup();
     const { groups } = (await t.get('/api/config')).body as { groups: Array<{ group: { id: string }; values: Record<string, unknown> }> };
     const ids = groups.map((g) => g.group.id);
     expect(ids).toContain('world:desktop-pet');
     expect(ids).toContain('world:desktop-pet:sound');
-    expect(ids.some((id) => id.endsWith(':cua') || id.endsWith(':asr'))).toBe(false);
+    expect(ids).toContain('world:desktop-pet:asr');
+    expect(ids.some((id) => id.endsWith(':cua'))).toBe(false);
     expect(groups.find((g) => g.group.id === 'world:desktop-pet')!.values['worlds.desktop-pet.window.scale']).toBe(1);
     expect((await t.get('/api/config/options/anything')).body).toEqual({ options: [] });
+  });
+
+  it('turns voice input on from the speech recognition group', async () => {
+    const t = await setup();
+    const r = await t.post('/api/config', { group: 'world:desktop-pet:asr', values: { 'worlds.desktop-pet.asr.enabled': true } });
+    expect(r.status).toBe(200);
+    expect(t.loaded.cfg.pet.asr.enabled).toBe(true);
   });
 
   it('offers the interface language and saves a change', async () => {
@@ -248,14 +256,14 @@ describe('webui surface', () => {
     expect(worlds).toEqual([expect.objectContaining({ id: 'desktop-pet', status: 'active', label: '桌宠', tools: ['pet_say'] })]);
   });
 
-  it('puts the pet page in the manifest with its panel script, without prompts and voice input', async () => {
+  it('puts the pet page in the manifest with its panel script and voice input, without prompts', async () => {
     const t = await setup();
     const manifest = (await t.get('/api/webui/manifest')).body;
     const page = manifest.providers.find((p: { id: string }) => p.id === 'world:desktop-pet');
     expect(page).toMatchObject({ kind: 'world', label: '桌宠', availability: 'active' });
     expect(page.prompts).toBeUndefined();
-    expect(page.lamps).toEqual([{ label: '桌宠窗口', state: 'online' }]);
-    expect(page.panels.map((p: { id: string }) => p.id)).toEqual(['pet', 'chat']);
+    expect(page.lamps).toEqual([{ label: '桌宠窗口', state: 'online' }, { label: '语音识别', state: 'offline' }]);
+    expect(page.panels.map((p: { id: string }) => p.id)).toEqual(['pet', 'voice', 'chat']);
     expect(JSON.stringify(page)).toContain('/assets/desktop-pet/webui.js');
     const js = await fetch(`${t.base}/assets/desktop-pet/webui.js`);
     expect(js.status).toBe(200);

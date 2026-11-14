@@ -221,7 +221,7 @@ export function tokenSet(file: string): boolean {
   }
 }
 
-/** 本项目在桌宠默认值上的改动：阶段 1 关掉语音识别，免得去下载语音模型。 */
+/** 本项目在桌宠默认值上的改动：语音输入默认关着，要用的人在「语音输入」页自己打开、下载模型（约 230 MB）。 */
 export const COOPET_PET_DEFAULTS: DeepPartial<DesktopPetConfigSection> = {
   asr: { enabled: false },
 };

@@ -1,6 +1,6 @@
 /**
  * Coopet 的设置窗入口：照 Coopanion 的 console/index.ts（1863175）写，区别只有页面列表——
- * 只挂 Coopet 有后端的页面：开始、习惯、装扮、对话、World（含 World 自己的页面）。
+ * 只挂 Coopet 有后端的页面：开始、习惯、装扮、语音输入、对话、World（含 World 自己的页面）。
  * 另挂 Coopet 自己的「运行诊断」（coopet/diagnostics.ts）。
  * 语音、提示词、用量、模型供应商、控制台不挂（没有对应的后端，或以后再接）。
  * Coopanion 的 index.ts 原样留在上一级，便于对照和同步上游。
@@ -44,6 +44,7 @@ import { dressPage } from '../features/dress/index.ts';
 import { homePage } from '../features/home/index.ts';
 import { onModeRequest, readMode, writeMode, type ConsoleMode } from '../features/mode.ts';
 import { petPage } from '../features/pet/index.ts';
+import { voicePage } from '../features/voice/index.ts';
 import { createRail, type NavGroup, type NavItem } from '../rail/index.ts';
 import { S as R } from '../rail/strings.ts';
 import { L } from '../strings.ts';
@@ -72,7 +73,7 @@ const fromFeature = (feature: FrameworkFeature, group: Entry['group'], basic = f
 
 /** The rail's entries in order. */
 export const ENTRIES: readonly Entry[] = [
-  fromPage(homePage), fromPage(petPage), fromPage(dressPage), fromPage(chatPage),
+  fromPage(homePage), fromPage(petPage), fromPage(dressPage), fromPage(voicePage), fromPage(chatPage),
   // 运行诊断：Coopet 自己的页面（coopet/diagnostics.ts），普通模式也列出
   fromFeature(diagnosticsFeature, 'diagnostics', true),
   fromFeature(worldsFeature, 'world-root', true),
