@@ -23,3 +23,20 @@
 .coopet-diag-section .kvtable td:first-child { white-space: nowrap; color: var(--muted-foreground); padding-right: 14px; }
 .coopet-diag .pill { vertical-align: 1px; }
 .coopet-diag + * { margin-top: 18px; }
+
+/* 运行诊断 → 通知 */
+.coopet-notices-hint { margin: 0 0 10px; font-size: 12px; color: var(--muted-foreground); }
+.coopet-notices-empty { margin: 8px 0; color: var(--muted-foreground); }
+.coopet-notices-table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
+.coopet-notices-table th { text-align: left; font-weight: 600; color: var(--ink-soft); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.coopet-notices-table td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+.coopet-notices-table th:nth-child(1), .coopet-notices-table td:nth-child(1) { width: 9em; white-space: nowrap; }
+.coopet-notices-table th:nth-child(2) { width: 9em; }
+.coopet-notices-table th:nth-child(4) { width: 5.5em; }
+.coopet-notices-table td:nth-child(4) { white-space: nowrap; }
+.coopet-notices-table th:nth-child(5) { width: 30%; }
+.coopet-notices-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coopet-notices-at { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.coopet-notices-table tr.is-muted td { color: var(--muted-foreground); }
+.coopet-notices-table tr.is-warn .coopet-notices-result { color: var(--warn); }
+.coopet-notices-table tr.is-ok .coopet-notices-result { color: var(--ok); }
