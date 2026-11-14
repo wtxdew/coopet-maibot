@@ -10,7 +10,7 @@ Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 
   经 MaiBot 插件 [maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（单独的仓库）连上来。
 - **桌宠有自己的身体**：Coopanion 的桌宠 World（形象、换装、形象包导入、互动、音效）。麦麦思考时桌宠做思考动作，
   回复按语气配上表情；戳、摸、甩桌宠在本地直接反应。
-- **设置窗**：Coopanion 的设置界面：开始（连接 MaiBot）、习惯、装扮、对话、World 扩展、运行诊断。界面跟系统语言（11 种）。
+- **设置窗**：Coopanion 的设置界面：开始（连接 MaiBot）、习惯、装扮、语音输入、对话、World 扩展、运行诊断。界面跟系统语言（11 种）。
 - **可以扩展**：加载 [Cortico](https://github.com/Pal-AI-Lab/Cortico) 格式的 **World 扩展**，给桌宠接上新的本地能力。
   World 扩展就是一个 npm 包，按 Cortico 的契约声明工具、事件和设置面板，Coopet 负责加载、托管、在设置窗里显示面板，
   并把扩展推出的事件交给桌宠说出来。内置 [Coding Agent 通知](https://github.com/ThermalEng/coopanion-agent-notify-world)
@@ -49,6 +49,19 @@ Coopet 基于 [Coopanion](https://github.com/Pal-AI-Lab/Coopanion)（Pal-AI-Lab 
 
 打开后在菜单栏（Windows 是托盘）的 Coopet 图标里选「设置…」，在「开始」页的「连接 MaiBot」里填插件地址
 （形如 `ws://<MaiBot 主机>:18100/ws`）和插件设置里的 token，点「保存并连接」。
+
+### 语音输入
+
+默认关着。在设置窗「语音输入」页打开，并下载识别模型。中文、英文、日文、韩文用 FunASR SenseVoice（约 230 MB），
+其他语言用 Whisper。模型先从 ModelScope 下载，下不了时改用 Hugging Face，存在数据目录的 `data/models` 里。
+识别在本机进行，声音不会离开电脑；改用「OpenAI 兼容的转写服务」时，每句录音才会发给那个服务。
+Windows 上还可以选系统自带的识别，不用下载。
+
+说话：快按一下**左 Option**（Windows 是**左 Alt**），紧接着按住说话，松开就发给麦麦。说话键和收音方式也在这一页改。
+
+macOS 第一次用时会问两个权限：「麦克风」（录音）和「输入监控」（读说话键），都选允许。
+Coopet 没有开发者签名，**每次更新后 macOS 都不会沿用这两个授权**。如果开关开着却提示没有权限，到
+「系统设置 → 隐私与安全性」的对应列表里，用「−」把 Coopet 删掉，再把 `/Applications/Coopet.app` 加回来，然后重启 Coopet。
 
 ### 更新
 
