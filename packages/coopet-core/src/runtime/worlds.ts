@@ -118,6 +118,17 @@ export class WorldRuntime {
     return this.slots.get(id)?.def;
   }
 
+  /** 给人看的名字：运行中的 World 按界面语言声明的（和设置窗一样），否则是定义里的；没有这个 World 时为 undefined */
+  label(id: string, language: Language): string | undefined {
+    const slot = this.slots.get(id);
+    if (!slot) return undefined;
+    try {
+      return slot.instance?.webUi?.(language)?.label ?? slot.def.label;
+    } catch {
+      return slot.def.label;
+    }
+  }
+
   /** x-options 的选项：问每个定义，第一个给出非空表的为准 */
   configOptions(kind: string, language: Language): Array<{ value: string; label: string }> {
     for (const slot of this.slots.values()) {
