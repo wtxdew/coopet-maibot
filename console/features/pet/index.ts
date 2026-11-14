@@ -1,7 +1,8 @@
 /**
  * 「习惯」: the everyday settings of the desktop pet, in sections: 通用 (language, what Coo calls you, Coo's
  * name, start at login (the app's login item, through the window's preload), automatic updates and anonymous usage statistics in the `companion` group), 行为与互动, 显示,
- * 音效, 电脑操作 (features/cua) and 其他 (the OBS overlay, the Chat page's context ring). Every row names its
+ * 音效, 电脑操作 (features/cua) and 其他 (the OBS overlay, the Chat page's context ring). Tabs under the title jump to each section
+ * (base/ui/section-tabs.ts), the page staying one page. Every row names its
  * setting in the label column, except one that only refines the row above it. In each row the setting
  * comes first and what it means under it. An on/off setting is a switch; picks among several (sound
  * kinds, the popups) are checkboxes. Most are written to the desktop-pet World's config group through `/api/config` (only the keys shown here are sent). The pet's own menu
@@ -32,13 +33,16 @@
 
 import { actionProblem } from '../../base/ui/problem.ts';
 import { ICONS } from 'cortico-world-desktop-pet/web/ui.js';
+import { SOUND_KINDS as PAGE_SOUND_KINDS } from 'cortico-world-desktop-pet/web/sound.js';
 import { captureKey, PRESSES, splitTaps, withTaps } from 'cortico-world-desktop-pet/webui/key-capture.ts';
 import { get, invokePanel, setConfig } from '../../base/api.ts';
 import type { Page, PageContext } from '../../base/page.ts';
 import { intro } from '../intro.ts';
+import { sectionTabs } from '../../base/ui/section-tabs.ts';
 import { CUA_GROUP, cuaSection } from '../cua/index.ts';
+import { S as CUA } from '../cua/strings.ts';
 import { announceName } from '../bot-name.ts';
-import { scaleSlider } from './scale-slider.ts';
+import { scaleSlider } from 'cortico-world-desktop-pet/web/scale-slider.js';
 import { S } from './strings.ts';
 
 const GROUP = 'world:desktop-pet';
@@ -109,10 +113,10 @@ interface TypeKeyState { enabled: boolean; hotkey: string; keyLabel: string; pro
 
 /** The pet's actions in the menu's order (the World's PET_ACTIONS), with the icon each shows. */
 const ACTIONS: ReadonlyArray<[id: string, icon: string]> = [
-  ['chat', 'chat'], ['voice', 'mic'], ['roam', 'roam_calm'], ['theme', 'moon'], ['sound', 'sound'], ['hide', 'eyeOff'], ['dress', 'shirt'], ['worlds', 'boxes'],
+  ['chat', 'chat'], ['voice', 'mic'], ['roam', 'roam_calm'], ['theme', 'moon'], ['sound', 'sound'], ['hide', 'eyeOff'], ['size', 'resize'], ['dress', 'shirt'], ['worlds', 'boxes'],
 ];
-/** Kinds of sound (the World's SOUND_KINDS), each under `worlds.desktop-pet.sounds.<kind>`. */
-const SOUND_KINDS = ['move', 'touch', 'face', 'snore', 'talk', 'ui'] as const;
+/** Kinds of sound, each a switch under `worlds.desktop-pet.sounds.<kind>`: the kinds the pet page mutes by. */
+const SOUND_KINDS = Object.keys(PAGE_SOUND_KINDS);
 /** The speech's steps, their numbers and the range of a custom one (SPEECH_LEVELS, SPEECH_PITCH_HZ, SPEECH_RATE in the World's config.ts). */
 const SPEECH_LEVELS = ['low', 'mid', 'high', 'custom'] as const;
 const SPEECH_PITCH = { steps: { low: 300, mid: 400, high: 500 } as Record<string, number>, min: 200, max: 700 };
@@ -163,6 +167,7 @@ async function mount(ctx: PageContext): Promise<void> {
   const scaleText = ui.h('span', 'companion-rangeval');
   const scaleBox = ui.h('div', 'companion-rangebox');
   const scale = scaleSlider(root.ownerDocument, {
+    className: 'companion-scale',
     min: SCALE_MIN, soft: SCALE_SOFT_MAX, max: SCALE_MAX, label: S.scale,
     room: () => scaleBox.clientWidth - scaleText.offsetWidth - 12,
     onInput: () => { showScale(); scaleTimer ??= setTimeout(sendScale, SCALE_SEND_MS); },
@@ -175,6 +180,7 @@ async function mount(ctx: PageContext): Promise<void> {
   const glowText = ui.h('span', 'companion-rangeval');
   const glowBox = ui.h('div', 'companion-rangebox');
   const glow = scaleSlider(root.ownerDocument, {
+    className: 'companion-scale',
     min: 0, soft: GLOW_MAX, max: GLOW_MAX, step: 1, label: S.glow, format: glowLabel,
     room: () => glowBox.clientWidth - glowText.offsetWidth - 12,
     onInput: () => showGlow(),
@@ -189,6 +195,7 @@ async function mount(ctx: PageContext): Promise<void> {
     const box = ui.h('div', 'companion-rangebox');
     const show = () => { text.textContent = `${Math.round(slider.value * 100)}%`; };
     const slider = scaleSlider(root.ownerDocument, {
+      className: 'companion-scale',
       min, soft: max, max, step: .05, label,
       room: () => box.clientWidth - text.offsetWidth - 12,
       onInput: () => show(),
@@ -426,7 +433,8 @@ async function mount(ctx: PageContext): Promise<void> {
     hideFullscreenRow,
     row(S.rememberLabel, remember.el, S.rememberHint),
   );
-  root.append(intro(ui, S.nav), habits.el, behavior.el, display.el);
+  const heading = intro(ui, S.nav);
+  root.append(heading, habits.el, behavior.el, display.el);
 
   /* ---------- sounds ---------- */
   const sounds = ui.sheet({ title: S.soundTitle });
@@ -443,6 +451,7 @@ async function mount(ctx: PageContext): Promise<void> {
   const volumeText = ui.h('span', 'companion-rangeval');
   const volumeBox = ui.h('div', 'companion-rangebox');
   const volume = scaleSlider(root.ownerDocument, {
+    className: 'companion-scale',
     min: 0, soft: 100, max: 100, step: 1, label: S.volume, format: (v) => `${v}%`,
     room: () => volumeBox.clientWidth - volumeText.offsetWidth - 12,
     onInput: () => showVolume(),
@@ -550,6 +559,16 @@ async function mount(ctx: PageContext): Promise<void> {
   // Coopet 本地修改：不显示「其他」（OBS 叠加层、对话页的上下文圈）
   void other;
 
+  // the page is long: tabs under its title jump to each section, as other pages' tabs switch their views
+  heading.append(sectionTabs(root.ownerDocument, signal, root, [
+    { value: 'general', label: S.groupGeneral, el: habits.el },
+    { value: 'behavior', label: S.groupBehavior, el: behavior.el },
+    { value: 'display', label: S.groupDisplay, el: display.el },
+    { value: 'sounds', label: S.soundTitle, el: sounds.el },
+    { value: 'speech', label: S.speechTitle, el: speechSheet.el },
+    // Coopet 本地修改：没有「电脑操作」「其他」的标签（这两节不显示）
+  ]).el);
+
   /* ---------- behaviour ---------- */
   const save = (key: string, value: string | number | boolean, group: string, anchor: HTMLElement) => saveAll({ [key]: value }, group, anchor);
   /** Whether the values were saved. */
@@ -646,7 +665,7 @@ async function mount(ctx: PageContext): Promise<void> {
       botName.dataset.saved = botName.value;
     }
     if (typeof values[KEYS.roam] === 'string') roam.setValue(values[KEYS.roam] as string);
-    if (typeof values[KEYS.scale] === 'number' && !scale.active && active !== scale.el) { scale.set(values[KEYS.scale] as number); showScale(); }
+    if (typeof values[KEYS.scale] === 'number' && !scale.active && active !== scale.el) { scale.set(values[KEYS.scale] as number); scaleSent = scale.value; showScale(); }
     if (!glow.active && active !== glow.el) { glow.set(typeof values[KEYS.glow] === 'number' ? values[KEYS.glow] as number : GLOW_DEFAULT); showGlow(); }
     for (const [s, key] of [[bubbleSize, KEYS.bubbleSize], [fontSize, KEYS.fontSize], [bubbleSpeed, KEYS.bubbleSpeed]] as const) {
       if (!s.slider.active && active !== s.slider.el) { s.slider.set(typeof values[key] === 'number' ? values[key] as number : 1); s.show(); }
