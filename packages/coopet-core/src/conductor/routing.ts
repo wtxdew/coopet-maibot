@@ -6,10 +6,10 @@
  * 每个扩展的路由设置（runtime/config.ts 的 RouteSettings）：
  * - 认得的通知按 mode 送：pet、maibot，或 rule（照事件 meta.route 的去向：pet / maibot / off；扩展没带就按 pet）；
  * - 认不得的通知按 unknown：record 只记录，pet 念正文开头，maibot 交给麦麦（rule 模式下 meta.route 是 off 时也不处理）；
- * - 说出来的话截到 maxChars 字。
- * 决定送给麦麦时由 Conductor 处理（现在先由桌宠说）。
+ * - 桌宠念的话（say）截到 maxChars 字；送给麦麦时另有一份 text：不转义、最多 MAIBOT_CHARS 字（maxChars 只管念多长）。
+ * 决定送给麦麦时由 Conductor 转给插件（协议 notice）；转不了时用 say 由桌宠说。
  *
- * 气泡文字先清理：去掉 Markdown 记号，再转义桌宠脚本会当成动作标记的写法（expr/escape.ts）。
+ * 文字先清理：去掉 Markdown 记号、压掉多余空白；气泡用的 say 再转义桌宠脚本会当成动作标记的写法（expr/escape.ts）。
  */
 
 import type { EventEnvelope } from 'cortico/core/types.ts';
@@ -20,7 +20,10 @@ import { escapeScript } from '../expr/escape.ts';
 /** 去向 */
 export type Destination = 'pet' | 'maibot';
 /** 一个事件该怎么处理 */
-export type RouteDecision = { say: string; to: Destination } | { skip: 'off' | 'rule-off' | 'no-renderer' | 'empty' };
+export type RouteDecision = { say: string; text: string; to: Destination } | { skip: 'off' | 'rule-off' | 'no-renderer' | 'empty' };
+
+/** 送给麦麦的通知最多多少字（协议上限 2000，这里留得短些，免得一条通知占满她的上下文） */
+export const MAIBOT_CHARS = 500;
 
 type Renderer = (e: EventEnvelope, language: Language) => string | null;
 
@@ -83,20 +86,26 @@ export function route(e: EventEnvelope, settings: RouteSettings, language: Langu
     text = e.text;
     to = settings.unknown;
   }
-  const said = text ? clip(plain(text), settings.maxChars) : '';
-  return said ? { say: said, to } : { skip: 'empty' };
+  const clean = text ? unmark(text) : '';
+  if (!clean) return { skip: 'empty' };
+  return { say: clip(escapeScript(clean), settings.maxChars), text: clip(clean, MAIBOT_CHARS), to };
 }
 
 /** 气泡里的纯文字：去掉 Markdown 记号，压掉多余空白，再转义会被当成动作标记的写法 */
 export function plain(text: string): string {
-  return escapeScript(text
+  return escapeScript(unmark(text));
+}
+
+/** 去掉 Markdown 记号，压掉多余空白（不转义：送给麦麦的文字用它） */
+function unmark(text: string): string {
+  return text
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/^#+\s*/gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/\s+/g, ' ')
-    .trim());
+    .trim();
 }
 
 /** 第一句（到第一个句号、问号、叹号或换行），再截到 max 字 */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EventEnvelope } from 'cortico/core/types.ts';
-import { plain, route } from '../src/conductor/routing.ts';
+import { MAIBOT_CHARS, plain, route } from '../src/conductor/routing.ts';
 import { ROUTE_DEFAULTS, type RouteSettings } from '../src/runtime/config.ts';
 
 const R = (over: Partial<RouteSettings> = {}): RouteSettings => ({ ...ROUTE_DEFAULTS, ...over });
@@ -15,8 +15,8 @@ const completed = (summary: string, extra: Record<string, unknown> = {}) => ev('
 
 describe('route', () => {
   it('says a coding agent completion as agent, project and the first sentence of the conclusion', () => {
-    expect(route(completed('已把 **设置窗** 换成新版。另外修了两个测试。'), R(), 'zh')).toEqual({ say: 'Claude Code 完成了 · coopet：已把 设置窗 换成新版。', to: 'pet' });
-    expect(route(completed('Done. Tests pass.'), R(), 'en')).toEqual({ say: 'Claude Code finished · coopet：Done.', to: 'pet' });
+    expect(route(completed('已把 **设置窗** 换成新版。另外修了两个测试。'), R(), 'zh')).toMatchObject({ say: 'Claude Code 完成了 · coopet：已把 设置窗 换成新版。', to: 'pet' });
+    expect(route(completed('Done. Tests pass.'), R(), 'en')).toMatchObject({ say: 'Claude Code finished · coopet：Done.', to: 'pet' });
   });
 
   it('cuts a long conclusion and confirms a test report briefly', () => {
@@ -25,13 +25,22 @@ describe('route', () => {
     // 结论先截到 60 字，整条再截到 maxChars（默认 80）
     expect([...said].length).toBe(81);
     expect(said.endsWith('…')).toBe(true);
-    expect(route(completed('x', { test: true }), R(), 'zh')).toEqual({ say: 'Claude Code 的完成通知通了', to: 'pet' });
+    expect(route(completed('x', { test: true }), R(), 'zh')).toMatchObject({ say: 'Claude Code 的完成通知通了', to: 'pet' });
   });
 
   it('cuts what it says to the configured length', () => {
     const said = (route(completed('这是一句很长的结论，'.repeat(5) + '。'), R({ maxChars: 20 }), 'zh') as { say: string }).say;
     expect([...said].length).toBe(21);
     expect(said.endsWith('…')).toBe(true);
+  });
+
+  it('keeps a longer, unescaped text for MaiBot', () => {
+    const other = ev('rss.new_items', '新文章【预告】' + 'x'.repeat(800));
+    const d = route(other, R({ unknown: 'maibot', maxChars: 20 }), 'zh') as { say: string; text: string };
+    expect([...d.say].length).toBe(21);
+    expect(d.say).not.toContain('【');
+    expect(d.text.startsWith('新文章【预告】')).toBe(true);
+    expect([...d.text].length).toBe(MAIBOT_CHARS + 1);
   });
 
   it('sends known notifications where the mode says, and nowhere when off', () => {
@@ -49,8 +58,8 @@ describe('route', () => {
 
   it('says an ntfy notice as label, title and message, and follows the topic route on rules', () => {
     const n = (meta: Record<string, unknown>) => ev('ntfy.message', 'ntfy 话题收到一条通知……', { topic: 'build_x', label: 'build', route: 'off', ...meta });
-    expect(route(n({ title: 'CI', message: '构建 **完成**' }), R(), 'zh')).toEqual({ say: 'build：CI：构建 完成', to: 'pet' });
-    expect(route(n({ message: '好了' }), R(), 'zh')).toEqual({ say: 'build：好了', to: 'pet' });
+    expect(route(n({ title: 'CI', message: '构建 **完成**' }), R(), 'zh')).toMatchObject({ say: 'build：CI：构建 完成', to: 'pet' });
+    expect(route(n({ message: '好了' }), R(), 'zh')).toMatchObject({ say: 'build：好了', to: 'pet' });
     expect(route(n({ message: '好了' }), R({ mode: 'rule' }), 'zh')).toEqual({ skip: 'rule-off' });
     expect(route(n({ message: '' }), R(), 'zh')).toEqual({ skip: 'empty' });
   });
