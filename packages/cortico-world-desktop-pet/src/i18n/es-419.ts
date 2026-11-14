@@ -38,7 +38,8 @@ const es419: Translation<PetText> = {
   hotkey: {
     cannotRead: (why: string) => `No se puede leer el teclado: ${why}`,
     macNoKey: 'Un teclado Mac no tiene esa tecla; elige otra tecla para hablar',
-    macPermission: 'Falta el permiso de Monitoreo de entrada: activa Coopanion en Configuración del Sistema → Privacidad y seguridad → Monitoreo de entrada y luego reinícialo. Si ya está activado, quita Coopanion de la lista con “−” y vuelve a agregarlo: una versión actualizada no hereda el permiso anterior',
+    // Coopet 本地修改：应用名是 Coopet（原文是 Coopanion）
+    macPermission: 'Falta el permiso de Monitoreo de entrada: activa Coopet en Configuración del Sistema → Privacidad y seguridad → Monitoreo de entrada y luego reinícialo. Si ya está activado, quita Coopet de la lista con “−” y vuelve a agregarlo: una versión actualizada no hereda el permiso anterior',
     linuxNoKey: 'Linux no puede leer esta tecla (los botones laterales del mouse no funcionan); elige otra tecla para hablar',
     linuxNoDisplay: 'La tecla para hablar necesita X11 (o XWayland) en Linux: DISPLAY no está definido',
     linuxNoX11: 'La tecla para hablar no puede conectarse a la pantalla X11',
