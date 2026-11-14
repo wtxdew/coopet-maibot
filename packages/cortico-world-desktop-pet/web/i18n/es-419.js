@@ -26,6 +26,7 @@ export default {
   // the status bubble: added when the same kind of thing was done several times
   'status.more': ' y {others} más',
   'status.thinking': 'Pensando',
+  'status.seconds': '{seconds} s',
 
   // the menu and the hover buttons
   'roam.off': 'Sin moverse',
@@ -44,6 +45,8 @@ export default {
   'action.themeLight': 'Modo nocturno: desactivado · clic para activar',
   'action.soundOn': 'Sonidos: activados · clic para desactivar',
   'action.soundOff': 'Sonidos: desactivados · clic para activar',
+  'action.size': 'Tamaño: {pct} %',
+  'action.sizeLabel': 'Tamaño de la mascota',
   'action.dress': 'Vestuario',
   'action.worlds': 'Mis Worlds',
   'action.hide': 'Escóndeme por ahora (el ícono de la bandeja me trae de vuelta)',
@@ -71,6 +74,7 @@ export default {
   'dress.title': 'Vestuario',
   'dress.preview': 'Vista previa',
   'dress.figure': 'Personaje',
+  'dress.size': 'Tamaño',
   'dress.palette': 'Colores',
   'dress.head': 'Cabeza',
   'dress.side': 'Accesorio',
@@ -148,8 +152,6 @@ export default {
   'looks.delete': "Eliminar {name}",
   'looks.exists': "{name} ya está en favoritos",
   'looks.empty': "Todavía no hay looks favoritos.",
-  'looks.readFailed': "No se pudieron leer los looks favoritos.",
-  'looks.retry': "Reintentar",
   'looks.deleteTitle': "¿Quitar {name} de favoritos?",
   'looks.deleteLead': "No se puede deshacer.",
   'looks.deleteGo': "Eliminar",

@@ -26,6 +26,7 @@ export default {
   // the status bubble: added when the same kind of thing was done several times
   'status.more': ' и ещё {others}',
   'status.thinking': 'Думаю',
+  'status.seconds': '{seconds} с',
 
   // the menu and the hover buttons
   'roam.off': 'На месте',
@@ -44,6 +45,8 @@ export default {
   'action.themeLight': 'Ночной режим: выкл. · нажмите, чтобы включить',
   'action.soundOn': 'Звуки: вкл. · нажмите, чтобы выключить',
   'action.soundOff': 'Звуки: выкл. · нажмите, чтобы включить',
+  'action.size': 'Размер: {pct} %',
+  'action.sizeLabel': 'Размер питомца',
   'action.dress': 'Гардероб',
   'action.worlds': 'Мои World',
   'action.hide': 'Спрятать меня на время (значок в трее вернёт меня)',
@@ -71,6 +74,7 @@ export default {
   'dress.title': 'Гардероб',
   'dress.preview': 'Предпросмотр',
   'dress.figure': 'Персонаж',
+  'dress.size': 'Размер',
   'dress.palette': 'Цвета',
   'dress.head': 'Голова',
   'dress.side': 'Аксессуар',
@@ -148,8 +152,6 @@ export default {
   'looks.delete': "Удалить «{name}»",
   'looks.exists': "«{name}» уже в избранном",
   'looks.empty': "Избранных образов пока нет.",
-  'looks.readFailed': "Не удалось прочитать избранные образы.",
-  'looks.retry': "Повторить",
   'looks.deleteTitle': "Убрать «{name}» из избранного?",
   'looks.deleteLead': "Это действие нельзя отменить.",
   'looks.deleteGo': "Удалить",

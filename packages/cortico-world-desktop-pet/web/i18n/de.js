@@ -26,6 +26,7 @@ export default {
   // the status bubble
   'status.more': ' und {others} weitere',
   'status.thinking': 'Denkt nach',
+  'status.seconds': '{seconds} s',
 
   // the menu and the hover buttons
   'roam.off': 'Bleibt stehen',
@@ -44,6 +45,8 @@ export default {
   'action.themeLight': 'Nachtmodus: aus · klicken zum Einschalten',
   'action.soundOn': 'Töne: an · klicken zum Ausschalten',
   'action.soundOff': 'Töne: aus · klicken zum Einschalten',
+  'action.size': 'Größe: {pct} %',
+  'action.sizeLabel': 'Größe des Haustiers',
   'action.dress': 'Outfit',
   'action.worlds': 'Meine Worlds',
   'action.hide': 'Versteck mich erst mal (das Symbol im Infobereich holt mich zurück)',
@@ -71,6 +74,7 @@ export default {
   'dress.title': 'Outfit',
   'dress.preview': 'Vorschau',
   'dress.figure': 'Figur',
+  'dress.size': 'Größe',
   'dress.palette': 'Farben',
   'dress.head': 'Kopf',
   'dress.side': 'Accessoire',
@@ -148,8 +152,6 @@ export default {
   'looks.delete': "{name} löschen",
   'looks.exists': "{name} ist schon ein Favorit",
   'looks.empty': "Noch keine Lieblingslooks.",
-  'looks.readFailed': "Lieblingslooks konnten nicht gelesen werden.",
-  'looks.retry': "Erneut versuchen",
   'looks.deleteTitle': "{name} aus den Favoriten entfernen?",
   'looks.deleteLead': "Das lässt sich nicht rückgängig machen.",
   'looks.deleteGo': "Löschen",
