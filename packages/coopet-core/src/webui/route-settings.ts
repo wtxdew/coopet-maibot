@@ -24,7 +24,7 @@ const TEXT = {
   zh: {
     title: 'Coopet 怎么处理它的通知',
     mode: '处理方式',
-    modeHint: 'Coopet 认得的通知（例如 Coding Agent 完成）送到哪里。「规则」按扩展自己的分类走（例如 ntfy 每个话题的设置）；扩展没有分类时按「桌宠」。「麦麦」把通知交给麦麦，由她决定要不要说；要 MaiBot 插件 0.2.0 以上，没连上或插件太旧时由桌宠说。',
+    modeHint: 'Coopet 认得的通知（例如 Coding Agent 完成）送到哪里。「规则」按扩展自己的分类走（例如 ntfy 每个话题的设置）；扩展没有分类时按「桌宠」。「麦麦」把通知交给麦麦，由她决定要不要说；要 MaiBot 插件 0.2.1 以上，没连上或插件太旧时由桌宠说。',
     modes: { pet: '桌宠', maibot: '麦麦', rule: '规则', off: '关闭' } as Record<RouteMode, string>,
     unknown: '认不得的通知',
     unknownHint: '扩展的通知原本是写给模型看的，Coopet 认不得的念出来多半不通顺。',
@@ -35,7 +35,7 @@ const TEXT = {
   en: {
     title: 'How Coopet handles its notifications',
     mode: 'Handling',
-    modeHint: 'Where notifications Coopet knows (such as a coding agent finishing) go. Rules follow the extension\'s own categories (such as each ntfy topic\'s setting); an extension without categories uses Pet. MaiBot hands them to MaiBot, who decides whether to say anything; it needs MaiBot plugin 0.2.0 or later, and the pet says them while not connected or with an older plugin.',
+    modeHint: 'Where notifications Coopet knows (such as a coding agent finishing) go. Rules follow the extension\'s own categories (such as each ntfy topic\'s setting); an extension without categories uses Pet. MaiBot hands them to MaiBot, who decides whether to say anything; it needs MaiBot plugin 0.2.1 or later, and the pet says them while not connected or with an older plugin.',
     modes: { pet: 'Pet', maibot: 'MaiBot', rule: 'Rules', off: 'Off' } as Record<RouteMode, string>,
     unknown: 'Unknown notifications',
     unknownHint: 'Extension notifications are written for a model; read out as they are, the ones Coopet does not know rarely sound right.',
