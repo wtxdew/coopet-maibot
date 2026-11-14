@@ -82,6 +82,16 @@ describe('WorldRuntime', () => {
     expect(t.events[0]).toMatchObject({ worldId: 'notify', e: { event: { type: 'notify.ping', text: 'ping' } } });
   });
 
+  it('names a world by its localized declaration while it runs, else by its definition', async () => {
+    const t = setup({ worlds: { notify: { enabled: true } } });
+    expect(t.runtime.label('notify', 'zh')).toBe('通知');
+    expect(t.runtime.label('nope', 'zh')).toBeUndefined();
+    await t.runtime.startAll();
+    (t.runtime.instance('notify') as unknown as { webUi: (l: string) => { label: string } }).webUi = (l) => ({ label: l === 'en' ? 'Notify' : '通知中心' });
+    expect(t.runtime.label('notify', 'en')).toBe('Notify');
+    expect(t.runtime.label('notify', 'zh')).toBe('通知中心');
+  });
+
   it('enables, disables and restarts without touching other worlds, writing enabled back', async () => {
     const t = setup();
     await t.runtime.startAll();
