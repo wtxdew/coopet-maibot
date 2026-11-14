@@ -1,0 +1,53 @@
+# 检查：每个 PR 和合进 master 的提交，在 macOS 和 Windows 上跑测试和类型检查（和发布用同样的机器和安装步骤）。
+# master 的保护规则要求这两项通过才能合并 PR。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+# 同一个 PR 推了新提交时，取消还在跑的旧一次
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: |
+          corepack pnpm run typecheck:core
+          corepack pnpm run typecheck:app
+          corepack pnpm run typecheck:console
+          corepack pnpm run typecheck:pet
+
+      - name: Test
+        run: |
+          corepack pnpm run test:core
+          corepack pnpm run test:app
+          corepack pnpm run test:pet
