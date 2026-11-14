@@ -18,6 +18,9 @@
  *   MAIBOT_NOTICE_GAP_MS，免得一下子塞给她一串。没连上、插件不支持或转失败时，改由桌宠说，日志写明原因。
  * 还在排队时同一来源（同一扩展的同一分类：meta.topic、meta.agent，没有就是事件类型）又来了，合成一条：
  * 用最新的那条，后面注明还有几条。
+ *
+ * 每条通知的经过记进 NoticeLog（notice-log.ts，设置窗「运行诊断 → 通知」）：去向或不处理的原因、合并、桌宠说了、
+ * 交给麦麦、退回桌宠的原因；交给麦麦后 NOTICE_REPLY_WINDOW_MS 内的第一条主动回复算她说的，过了还没有就记成没说。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -29,6 +32,7 @@ import { route } from './routing.ts';
 import { escapeScript } from '../expr/escape.ts';
 import type { Language } from 'cortico/core/language.ts';
 import { ROUTE_DEFAULTS, type RouteSettings } from '../runtime/config.ts';
+import type { NoticeLog } from './notice-log.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
@@ -49,6 +53,8 @@ export interface ConductorOptions {
   maibotNoticeGapMs?: number;
   /** 扩展的名字（交给麦麦时写在通知的来源里）；没有时用扩展 id */
   worldLabel?: (worldId: string) => string | undefined;
+  /** 通知记录；没有时不记 */
+  notices?: NoticeLog;
   /** 界面语言（渲染通知用） */
   language?: () => Language;
 }
@@ -63,6 +69,8 @@ const NOTICE_GAP_MS = 4000;
 const MAIBOT_NOTICE_GAP_MS = 10_000;
 /** 通知来源的长度上限（协议 notice.source） */
 const SOURCE_CHARS = 64;
+/** 交给麦麦后多久以内的第一条主动回复算她说的（和插件不分句的窗口一样） */
+const NOTICE_REPLY_WINDOW_MS = 90_000;
 
 /** 使用者说话的事件：打字、语音；原文在 meta.text（event.text 带了给模型看的时间戳前缀）。 */
 const USER_SAID = new Set(['desktop-pet.message', 'desktop-pet.speech']);
@@ -83,14 +91,20 @@ export class Conductor {
   private readonly petNotices: NoticeQueue;
   /** 等着交给麦麦的通知 */
   private readonly maibotNotices: NoticeQueue;
+  /** 交给了麦麦、还在等她说的通知记录（先交的在前），各带一个"没说"的计时 */
+  private awaitingReply: Array<{ recordId: string; timer: NodeJS.Timeout }> = [];
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
     this.timeoutMs = opts.thinkingTimeoutMs ?? 30_000;
     this.now = opts.now ?? Date.now;
     this.turnStats = new TurnStats(this.now);
-    this.petNotices = new NoticeQueue(opts.noticeGapMs ?? NOTICE_GAP_MS, this.now, (n) => void this.say(n.say + this.more(n.more)));
-    this.maibotNotices = new NoticeQueue(opts.maibotNoticeGapMs ?? MAIBOT_NOTICE_GAP_MS, this.now, (n) => void this.toMaibot(n));
+    const merged = (older: PendingNotice, newer: PendingNotice) => this.record(older.recordId, { result: 'merged', mergedInto: newer.recordId });
+    this.petNotices = new NoticeQueue(opts.noticeGapMs ?? NOTICE_GAP_MS, this.now, (n) => {
+      this.record(n.recordId, { result: 'said' });
+      void this.say(n.say + this.more(n.more));
+    }, merged);
+    this.maibotNotices = new NoticeQueue(opts.maibotNoticeGapMs ?? MAIBOT_NOTICE_GAP_MS, this.now, (n) => void this.toMaibot(n), merged);
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
     opts.link.onThinking?.((on) => this.thinkingChanged(on));
@@ -118,17 +132,18 @@ export class Conductor {
   worldEvent(worldId: string, { event }: HostedEvent): void {
     const settings = this.opts.routeOf?.(worldId) ?? ROUTE_DEFAULTS;
     const decision = route(event, settings, this.opts.language?.() ?? 'zh');
+    const source = clip(this.opts.worldLabel?.(worldId) || worldId, SOURCE_CHARS);
+    const entry = { at: new Date(this.now()).toISOString(), cursor: event.cursor, worldId, source, type: event.type };
     if ('skip' in decision) {
       this.opts.log.debug(`[通知 · ${worldId}] #${event.cursor} ${event.type} 不处理（${decision.skip}）`);
+      this.opts.notices?.add({ ...entry, text: event.text ?? '', route: null, skip: decision.skip, result: 'skipped' });
       return;
     }
     const meta = (event.meta ?? {}) as { topic?: unknown; agent?: unknown };
     const kind = typeof meta.topic === 'string' ? meta.topic : typeof meta.agent === 'string' ? meta.agent : event.type;
     const tag = `[通知 · ${worldId}] #${event.cursor} ${event.type}`;
-    const notice: PendingNotice = {
-      key: `${worldId}:${kind}`, tag, say: decision.say, text: decision.text, more: 0,
-      source: clip(this.opts.worldLabel?.(worldId) || worldId, SOURCE_CHARS),
-    };
+    const recordId = this.opts.notices?.add({ ...entry, text: decision.text, route: decision.to, result: 'queued' }).id ?? '';
+    const notice: PendingNotice = { key: `${worldId}:${kind}`, tag, say: decision.say, text: decision.text, more: 0, source, recordId };
     if (decision.to === 'maibot') {
       const why = this.cannotNotice();
       if (!why) {
@@ -137,6 +152,7 @@ export class Conductor {
         return;
       }
       this.opts.log.info(`${tag} → 桌宠说（交给麦麦不行：${why}）：${preview(decision.say)}`);
+      this.record(recordId, { fallback: why });
     } else {
       this.opts.log.info(`${tag} → 桌宠说：${preview(decision.say)}`);
     }
@@ -155,6 +171,7 @@ export class Conductor {
   private async toMaibot(n: PendingNotice): Promise<void> {
     const fallback = (why: string) => {
       this.opts.log.warn(`${n.tag} 没能交给麦麦（${why}），改由桌宠说`);
+      this.record(n.recordId, { fallback: why, result: 'queued' });
       this.petNotices.push(n);
     };
     const why = this.cannotNotice();
@@ -162,9 +179,27 @@ export class Conductor {
     try {
       await this.opts.link.notice!({ source: n.source, text: n.text + this.more(n.more) });
       this.opts.log.info(`${n.tag} 麦麦收下了${n.more ? `（合并了 ${n.more + 1} 条）` : ''}`);
+      this.record(n.recordId, { result: 'handed' });
+      this.awaitReply(n.recordId);
     } catch (err) {
       fallback((err as Error).message);
     }
+  }
+
+  /** 改一条通知记录（没开记录时什么也不做） */
+  private record(recordId: string, patch: Parameters<NoticeLog['update']>[1]): void {
+    if (recordId) this.opts.notices?.update(recordId, patch);
+  }
+
+  /** 交给麦麦后开始等她说；NOTICE_REPLY_WINDOW_MS 内没有主动回复就记成没说 */
+  private awaitReply(recordId: string): void {
+    if (!recordId || !this.opts.notices) return;
+    const timer = setTimeout(() => {
+      this.awaitingReply = this.awaitingReply.filter((a) => a.recordId !== recordId);
+      this.record(recordId, { result: 'silent' });
+    }, NOTICE_REPLY_WINDOW_MS);
+    timer.unref?.();
+    this.awaitingReply.push({ recordId, timer });
   }
 
   /** 合并了几条时加在后面的说明 */
@@ -183,6 +218,8 @@ export class Conductor {
     this.clearTimer();
     this.petNotices.stop();
     this.maibotNotices.stop();
+    for (const a of this.awaitingReply) clearTimeout(a.timer);
+    this.awaitingReply = [];
   }
 
   private async userSaid(event: EventEnvelope): Promise<void> {
@@ -240,6 +277,12 @@ export class Conductor {
       return;
     }
     this.trace(`回复到达（${[...text].length} 字）：${preview(text)}`);
+    // 交给麦麦后窗口内的第一条回复，算她对最早那条还在等的通知说的（按时间推断）
+    const answered = this.awaitingReply.shift();
+    if (answered) {
+      clearTimeout(answered.timer);
+      this.record(answered.recordId, { result: 'replied', reply: text });
+    }
     this.turnStats.mark('reply');
     // 先转义（回复里的【】、短的 <…> 会被桌宠当成动作标记吃掉），再加表情规则的动作标记
     const safe = escapeScript(text);
@@ -329,11 +372,13 @@ interface PendingNotice {
   say: string;
   text: string;
   more: number;
+  /** NoticeLog 里的记录；没开记录时为空字符串 */
+  recordId: string;
 }
 
 /**
  * 通知队列：两条之间至少隔 gapMs；还在排队时同一 key 又来了，换成新的那条、more 加一。
- * 排到时调 deliver（合并的说明由 deliver 加）。
+ * 排到时调 deliver（合并的说明由 deliver 加）；合并时调 onMerge（被合掉的、留下的）。
  */
 class NoticeQueue {
   private items: PendingNotice[] = [];
@@ -344,11 +389,15 @@ class NoticeQueue {
     private readonly gapMs: number,
     private readonly now: () => number,
     private readonly deliver: (n: PendingNotice) => void,
+    private readonly onMerge?: (older: PendingNotice, newer: PendingNotice) => void,
   ) {}
 
   push(n: PendingNotice): void {
     const waiting = this.items.find((x) => x.key === n.key);
-    if (waiting) Object.assign(waiting, { ...n, more: waiting.more + n.more + 1 });
+    if (waiting) {
+      this.onMerge?.({ ...waiting }, n);
+      Object.assign(waiting, { ...n, more: waiting.more + n.more + 1 });
+    }
     else this.items.push({ ...n });
     this.pump();
   }

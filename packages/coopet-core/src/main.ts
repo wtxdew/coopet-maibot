@@ -32,6 +32,7 @@ import { WorldRuntime } from './runtime/worlds.ts';
 import { SecretStore } from './runtime/secrets.ts';
 import { parseStep, sayUpdates } from './runtime/updates.ts';
 import { checkUpdated, sayUpdated } from './runtime/after-update.ts';
+import { NoticeLog } from './conductor/notice-log.ts';
 import { canSelfUpdate } from './webui/update-settings.ts';
 import { join } from 'node:path';
 
@@ -117,12 +118,18 @@ const pet = await startPet({
   onDesktopChange: (onDesktop) => shell?.send({ type: 'pet', onDesktop }),
 });
 
+/** 通知记录（设置窗「运行诊断 → 通知」）：每条通知去了哪里、结果如何 */
+const noticeLog = new NoticeLog(join(dirs.root, 'notices'), {
+  onWriteError: (err) => log.warn(`通知记录写不了（${join(dirs.root, 'notices')}），之后只留在内存里：${err.message}`),
+});
+
 conductor = new Conductor({
   pet, link, log: log.child('conductor'), botName, decorate: createDecorator(),
   routeOf: (worldId) => cfg.routes[worldId] ?? ROUTE_DEFAULTS,
   language: () => cfg.language,
   // 交给麦麦的通知写上扩展的名字；扩展 World 在下面才加载，通知也只会在那之后来
   worldLabel: (worldId) => worlds.label(worldId, cfg.language),
+  notices: noticeLog,
 });
 link.start();
 

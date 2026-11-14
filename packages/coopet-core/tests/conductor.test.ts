@@ -4,6 +4,7 @@ import { Conductor } from '../src/conductor/conductor.ts';
 import { LinkSwitch } from '../src/link/switch.ts';
 import type { IncomingMessage, LinkState, OutgoingChat, OutgoingNotice } from '../src/link/types.ts';
 import { consoleLogger } from '../src/runtime/log.ts';
+import { NoticeLog } from '../src/conductor/notice-log.ts';
 
 type Call =
   | { k: 'say'; script: string }
@@ -11,7 +12,7 @@ type Call =
   | { k: 'turnEnded' }
   | { k: 'settled'; cursors: number[]; outcome: string };
 
-function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean; noticeGapMs?: number; notices?: 'ok' | 'fail'; maibotNoticeGapMs?: number } = {}) {
+function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean; noticeGapMs?: number; notices?: 'ok' | 'fail'; maibotNoticeGapMs?: number; log?: NoticeLog } = {}) {
   const calls: Call[] = [];
   const sent: OutgoingChat[] = [];
   const noticed: OutgoingNotice[] = [];
@@ -40,6 +41,7 @@ function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => stri
     pet, link, log: consoleLogger('test', 'error'), botName: () => '麦麦',
     thinkingTimeoutMs: 1000, noticeGapMs: opts.noticeGapMs ?? 0, maibotNoticeGapMs: opts.maibotNoticeGapMs ?? 0,
     worldLabel: (id) => (id === 'ntfy' ? 'ntfy 通知' : undefined),
+    ...(opts.log ? { notices: opts.log } : {}),
     ...(opts.decorate ? { decorate: opts.decorate } : {}),
   });
   return {
@@ -346,5 +348,89 @@ describe('with a switchable link', () => {
     // maim_message：发出就显示思考中（估计）
     expect(calls).toEqual([{ k: 'phase', state: 'model' }]);
     conductor.stop();
+  });
+});
+
+describe('notice record', () => {
+  const notice = (cursor: number, text: string, topic = 'build') => ({ event: { cursor, type: 'ntfy.message', source: 'ntfy', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text, meta: { topic, label: topic, message: text } } as EventEnvelope });
+  const routeTo = (t: ReturnType<typeof setup>, mode: string) => {
+    (t.conductor as unknown as { opts: { routeOf: () => unknown } }).opts.routeOf = () => ({ mode, unknown: 'record', maxChars: 80 });
+  };
+  const brief = (log: NoticeLog) => log.recent(10).reverse().map((r) => ({ route: r.route, result: r.result, ...(r.fallback ? { fallback: r.fallback } : {}), ...(r.reply ? { reply: r.reply } : {}), ...(r.skip ? { skip: r.skip } : {}) }));
+
+  it('records what the pet said and what it skipped', async () => {
+    const log = new NoticeLog(null);
+    const t = setup('open', { log });
+    routeTo(t, 'pet');
+    t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    routeTo(t, 'off');
+    t.conductor.worldEvent('ntfy', notice(2, '测试'));
+    await tick();
+    expect(brief(log)).toEqual([{ route: 'pet', result: 'said' }, { route: null, result: 'skipped', skip: 'off' }]);
+    expect(log.recent(10)[1]).toMatchObject({ source: 'ntfy 通知', text: 'build：构建完成', cursor: 1 });
+  });
+
+  it('records a notice MaiBot took and what she said about it', async () => {
+    const log = new NoticeLog(null);
+    const t = setup('open', { notices: 'ok', log });
+    routeTo(t, 'maibot');
+    t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick(); await tick();
+    expect(brief(log)).toEqual([{ route: 'maibot', result: 'handed' }]);
+    t.incoming([{ kind: 'text', text: 'GitHub 上的构建完成了' }]);
+    await tick();
+    expect(brief(log)).toEqual([{ route: 'maibot', result: 'replied', reply: 'GitHub 上的构建完成了' }]);
+    t.conductor.stop();
+  });
+
+  it('records silence when MaiBot says nothing in time', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = new NoticeLog(null);
+      const t = setup('open', { notices: 'ok', log });
+      routeTo(t, 'maibot');
+      t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(brief(log)).toEqual([{ route: 'maibot', result: 'silent' }]);
+      t.conductor.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('records why a notice fell back to the pet', async () => {
+    const offline = new NoticeLog(null);
+    const t1 = setup('closed', { notices: 'ok', log: offline });
+    routeTo(t1, 'maibot');
+    t1.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick();
+    expect(brief(offline)).toEqual([{ route: 'maibot', result: 'said', fallback: '没连上 MaiBot' }]);
+    const refused = new NoticeLog(null);
+    const t2 = setup('open', { notices: 'fail', log: refused });
+    routeTo(t2, 'maibot');
+    t2.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick(); await tick(); await tick();
+    expect(brief(refused)).toEqual([{ route: 'maibot', result: 'said', fallback: 'rejected：MaiBot 没有收下' }]);
+  });
+
+  it('records which notice a merged one went into', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = new NoticeLog(null);
+      const t = setup('open', { noticeGapMs: 1000, log });
+      routeTo(t, 'pet');
+      t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+      t.conductor.worldEvent('ntfy', notice(2, '测试一', 'test'));
+      t.conductor.worldEvent('ntfy', notice(3, '测试二', 'test'));
+      await vi.advanceTimersByTimeAsync(1000);
+      const [first, second, third] = log.recent(10).reverse();
+      expect(first.result).toBe('said');
+      expect(second).toMatchObject({ result: 'merged', mergedInto: third.id });
+      expect(third.result).toBe('said');
+      t.conductor.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
