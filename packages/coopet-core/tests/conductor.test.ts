@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventEnvelope, RunPhase } from 'cortico/core/types.ts';
 import { Conductor } from '../src/conductor/conductor.ts';
 import { LinkSwitch } from '../src/link/switch.ts';
-import type { IncomingMessage, LinkState, OutgoingChat } from '../src/link/types.ts';
+import type { IncomingMessage, LinkState, OutgoingChat, OutgoingNotice } from '../src/link/types.ts';
 import { consoleLogger } from '../src/runtime/log.ts';
 
 type Call =
@@ -11,9 +11,10 @@ type Call =
   | { k: 'turnEnded' }
   | { k: 'settled'; cursors: number[]; outcome: string };
 
-function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean; noticeGapMs?: number } = {}) {
+function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => string; sendFails?: boolean; realThinking?: boolean; noticeGapMs?: number; notices?: 'ok' | 'fail'; maibotNoticeGapMs?: number } = {}) {
   const calls: Call[] = [];
   const sent: OutgoingChat[] = [];
+  const noticed: OutgoingNotice[] = [];
   let onMessage: (m: IncomingMessage) => void = () => {};
   let onState: (s: LinkState) => void = () => {};
   let onThinking: (on: boolean) => void = () => {};
@@ -30,13 +31,19 @@ function setup(state: LinkState = 'open', opts: { decorate?: (t: string) => stri
     onMessage: (cb: (m: IncomingMessage) => void) => { onMessage = cb; },
     onState: (cb: (s: LinkState) => void) => { onState = cb; },
     ...(opts.realThinking ? { onThinking: (cb: (on: boolean) => void) => { onThinking = cb; } } : {}),
+    ...(opts.notices ? {
+      supportsNotice: () => linkState === 'open',
+      notice: async (n: OutgoingNotice) => { if (opts.notices === 'fail') throw new Error('rejected：MaiBot 没有收下'); noticed.push(n); return { id: 'n' }; },
+    } : {}),
   };
   const conductor = new Conductor({
     pet, link, log: consoleLogger('test', 'error'), botName: () => '麦麦',
-    thinkingTimeoutMs: 1000, noticeGapMs: opts.noticeGapMs ?? 0, ...(opts.decorate ? { decorate: opts.decorate } : {}),
+    thinkingTimeoutMs: 1000, noticeGapMs: opts.noticeGapMs ?? 0, maibotNoticeGapMs: opts.maibotNoticeGapMs ?? 0,
+    worldLabel: (id) => (id === 'ntfy' ? 'ntfy 通知' : undefined),
+    ...(opts.decorate ? { decorate: opts.decorate } : {}),
   });
   return {
-    conductor, calls, sent,
+    conductor, calls, sent, noticed,
     incoming: (parts: IncomingMessage['parts']) => onMessage({ parts, receivedAt: Date.now() }),
     setLink: (s: LinkState) => { linkState = s; onState(s); },
     think: (on: boolean) => onThinking(on),
@@ -212,6 +219,64 @@ describe('notice pacing', () => {
       expect(t.calls).toHaveLength(1);
       await vi.advanceTimersByTimeAsync(1);
       expect(t.calls[1]).toEqual({ k: 'say', script: 'test：测试三（还有 2 条）' });
+      t.conductor.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('notices to MaiBot', () => {
+  const notice = (cursor: number, text: string, topic = 'build') => ({ event: { cursor, type: 'ntfy.message', source: 'ntfy', origin: 'external', ts: '2026-11-13T10:00:00+08:00', text, meta: { topic, label: topic, message: text } } as EventEnvelope });
+  const toMaibot = (t: ReturnType<typeof setup>) => {
+    (t.conductor as unknown as { opts: { routeOf: () => unknown } }).opts.routeOf = () => ({ mode: 'maibot', unknown: 'record', maxChars: 80 });
+  };
+
+  it('hands the notice to MaiBot when the plugin takes notices', async () => {
+    const t = setup('open', { notices: 'ok' });
+    toMaibot(t);
+    t.conductor.worldEvent('ntfy', notice(1, '构建 **完成**'));
+    await tick(); await tick();
+    expect(t.noticed).toEqual([{ source: 'ntfy 通知', text: 'build：构建 完成' }]);
+    expect(t.calls).toEqual([]);
+    expect(t.sent).toEqual([]);
+  });
+
+  it('lets the pet say it when the plugin is older or not connected', async () => {
+    const older = setup('open');
+    toMaibot(older);
+    older.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick();
+    expect(older.calls).toEqual([{ k: 'say', script: 'build：构建完成' }]);
+    const offline = setup('closed', { notices: 'ok' });
+    toMaibot(offline);
+    offline.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick();
+    expect(offline.noticed).toEqual([]);
+    expect(offline.calls).toEqual([{ k: 'say', script: 'build：构建完成' }]);
+  });
+
+  it('lets the pet say it when MaiBot does not take it', async () => {
+    const t = setup('open', { notices: 'fail' });
+    toMaibot(t);
+    t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+    await tick(); await tick(); await tick();
+    expect(t.calls).toEqual([{ k: 'say', script: 'build：构建完成' }]);
+  });
+
+  it('spaces notices to MaiBot apart and merges ones from the same source', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = setup('open', { notices: 'ok', maibotNoticeGapMs: 1000 });
+      toMaibot(t);
+      t.conductor.worldEvent('ntfy', notice(1, '构建完成'));
+      t.conductor.worldEvent('ntfy', notice(2, '测试一', 'test'));
+      t.conductor.worldEvent('ntfy', notice(3, '测试二', 'test'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(t.noticed.map((n) => n.text)).toEqual(['build：构建完成']);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(t.noticed.map((n) => n.text)).toEqual(['build：构建完成', 'test：测试二（还有 1 条）']);
+      expect(t.calls).toEqual([]);
       t.conductor.stop();
     } finally {
       vi.useRealTimers();

@@ -121,6 +121,8 @@ conductor = new Conductor({
   pet, link, log: log.child('conductor'), botName, decorate: createDecorator(),
   routeOf: (worldId) => cfg.routes[worldId] ?? ROUTE_DEFAULTS,
   language: () => cfg.language,
+  // 交给麦麦的通知写上扩展的名字；扩展 World 在下面才加载，通知也只会在那之后来
+  worldLabel: (worldId) => worlds.label(worldId, cfg.language),
 });
 link.start();
 

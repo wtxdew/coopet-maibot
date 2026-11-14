@@ -12,9 +12,12 @@
  * 回复、思考信号对不上具体是哪条消息引起的，统一按最近一次输入计时；
  * 距最近一次输入超过 TURN_WINDOW_MS 的回复记成 `[主动]`。
  *
- * 扩展 World 的通知按路由（routing.ts）决定说不说、说什么。要说的排队：两条气泡之间至少隔 NOTICE_GAP_MS；
+ * 扩展 World 的通知按路由（routing.ts）决定说不说、说什么、交给谁。两条队列（NoticeQueue）：
+ * - 桌宠说：两条气泡之间至少隔 NOTICE_GAP_MS；
+ * - 交给麦麦：经插件转成 MaiBot 的通知消息（协议 notice，插件 0.2.0 起），由麦麦决定要不要说；两条之间至少隔
+ *   MAIBOT_NOTICE_GAP_MS，免得一下子塞给她一串。没连上、插件不支持或转失败时，改由桌宠说，日志写明原因。
  * 还在排队时同一来源（同一扩展的同一分类：meta.topic、meta.agent，没有就是事件类型）又来了，合成一条：
- * 说最新的那条，后面注明还有几条。送给麦麦的现在先由桌宠说（World 扩展第二步再接上）。
+ * 用最新的那条，后面注明还有几条。
  */
 
 import type { EventEnvelope, Logger } from 'cortico/core/types.ts';
@@ -29,7 +32,7 @@ import { ROUTE_DEFAULTS, type RouteSettings } from '../runtime/config.ts';
 
 export interface ConductorOptions {
   pet: Pick<PetHandle, 'call' | 'phase' | 'turnEnded' | 'settled'>;
-  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState' | 'onThinking' | 'hasThinking'>;
+  link: Pick<Link, 'state' | 'send' | 'onMessage' | 'onState' | 'onThinking' | 'hasThinking' | 'supportsNotice' | 'notice'>;
   log: Logger;
   botName: () => string;
   /** 给 MaiBot 的回复加表情动作标记（表情规则 E1）；没有时原样显示 */
@@ -42,6 +45,10 @@ export interface ConductorOptions {
   routeOf?: (worldId: string) => RouteSettings;
   /** 两条通知气泡之间至少隔多久，默认 NOTICE_GAP_MS（测试时调小） */
   noticeGapMs?: number;
+  /** 两条交给麦麦的通知之间至少隔多久，默认 MAIBOT_NOTICE_GAP_MS（测试时调小） */
+  maibotNoticeGapMs?: number;
+  /** 扩展的名字（交给麦麦时写在通知的来源里）；没有时用扩展 id */
+  worldLabel?: (worldId: string) => string | undefined;
   /** 界面语言（渲染通知用） */
   language?: () => Language;
 }
@@ -52,6 +59,10 @@ const TURN_WINDOW_MS = 120_000;
 const PREVIEW_CHARS = 30;
 /** 两条通知气泡之间至少隔多久 */
 const NOTICE_GAP_MS = 4000;
+/** 两条交给麦麦的通知之间至少隔多久 */
+const MAIBOT_NOTICE_GAP_MS = 10_000;
+/** 通知来源的长度上限（协议 notice.source） */
+const SOURCE_CHARS = 64;
 
 /** 使用者说话的事件：打字、语音；原文在 meta.text（event.text 带了给模型看的时间戳前缀）。 */
 const USER_SAID = new Set(['desktop-pet.message', 'desktop-pet.speech']);
@@ -68,16 +79,18 @@ export class Conductor {
   /** 最近一次输入：时间线以它为起点 */
   private last: { cursor: number; at: number } | null = null;
   private readonly turnStats: TurnStats;
-  /** 排队等着说的通知；more 是合进来的条数 */
-  private notices: Array<{ key: string; text: string; more: number }> = [];
-  private noticeTimer: NodeJS.Timeout | null = null;
-  private lastNoticeAt = -Infinity;
+  /** 等着桌宠说的通知 */
+  private readonly petNotices: NoticeQueue;
+  /** 等着交给麦麦的通知 */
+  private readonly maibotNotices: NoticeQueue;
 
   constructor(opts: ConductorOptions) {
     this.opts = opts;
     this.timeoutMs = opts.thinkingTimeoutMs ?? 30_000;
     this.now = opts.now ?? Date.now;
     this.turnStats = new TurnStats(this.now);
+    this.petNotices = new NoticeQueue(opts.noticeGapMs ?? NOTICE_GAP_MS, this.now, (n) => void this.say(n.say + this.more(n.more)));
+    this.maibotNotices = new NoticeQueue(opts.maibotNoticeGapMs ?? MAIBOT_NOTICE_GAP_MS, this.now, (n) => void this.toMaibot(n));
     opts.link.onMessage((m) => void this.reply(m));
     opts.link.onState((s) => this.linkChanged(s));
     opts.link.onThinking?.((on) => this.thinkingChanged(on));
@@ -100,8 +113,7 @@ export class Conductor {
   }
 
   /**
-   * 扩展 World 推出的事件：按路由（routing.ts）决定让桌宠说什么，或者不处理。
-   * 不算一轮对话，也不发给 MaiBot（交给麦麦是以后的事）。
+   * 扩展 World 推出的事件：按路由（routing.ts）决定让桌宠说什么、交给麦麦，或者不处理。不算一轮对话。
    */
   worldEvent(worldId: string, { event }: HostedEvent): void {
     const settings = this.opts.routeOf?.(worldId) ?? ROUTE_DEFAULTS;
@@ -110,11 +122,55 @@ export class Conductor {
       this.opts.log.debug(`[通知 · ${worldId}] #${event.cursor} ${event.type} 不处理（${decision.skip}）`);
       return;
     }
-    const fallback = decision.to === 'maibot' ? '（交给麦麦还不能用，先由桌宠说）' : '';
-    this.opts.log.info(`[通知 · ${worldId}] #${event.cursor} ${event.type} → 桌宠说${fallback}：${preview(decision.say)}`);
     const meta = (event.meta ?? {}) as { topic?: unknown; agent?: unknown };
     const kind = typeof meta.topic === 'string' ? meta.topic : typeof meta.agent === 'string' ? meta.agent : event.type;
-    this.queueNotice(`${worldId}:${kind}`, decision.say);
+    const tag = `[通知 · ${worldId}] #${event.cursor} ${event.type}`;
+    const notice: PendingNotice = {
+      key: `${worldId}:${kind}`, tag, say: decision.say, text: decision.text, more: 0,
+      source: clip(this.opts.worldLabel?.(worldId) || worldId, SOURCE_CHARS),
+    };
+    if (decision.to === 'maibot') {
+      const why = this.cannotNotice();
+      if (!why) {
+        this.opts.log.info(`${tag} → 交给麦麦：${preview(decision.text)}`);
+        this.maibotNotices.push(notice);
+        return;
+      }
+      this.opts.log.info(`${tag} → 桌宠说（交给麦麦不行：${why}）：${preview(decision.say)}`);
+    } else {
+      this.opts.log.info(`${tag} → 桌宠说：${preview(decision.say)}`);
+    }
+    this.petNotices.push(notice);
+  }
+
+  /** 现在不能交给麦麦的原因；能的话是 null */
+  private cannotNotice(): string | null {
+    const { link } = this.opts;
+    if (link.state() !== 'open') return '没连上 MaiBot';
+    if (!link.supportsNotice?.() || !link.notice) return '插件不支持转通知（要 0.2.0 以上）';
+    return null;
+  }
+
+  /** 排到了：转给插件；转不了或插件没收下时改由桌宠说 */
+  private async toMaibot(n: PendingNotice): Promise<void> {
+    const fallback = (why: string) => {
+      this.opts.log.warn(`${n.tag} 没能交给麦麦（${why}），改由桌宠说`);
+      this.petNotices.push(n);
+    };
+    const why = this.cannotNotice();
+    if (why) { fallback(why); return; }
+    try {
+      await this.opts.link.notice!({ source: n.source, text: n.text + this.more(n.more) });
+      this.opts.log.info(`${n.tag} 麦麦收下了${n.more ? `（合并了 ${n.more + 1} 条）` : ''}`);
+    } catch (err) {
+      fallback((err as Error).message);
+    }
+  }
+
+  /** 合并了几条时加在后面的说明 */
+  private more(count: number): string {
+    if (!count) return '';
+    return (this.opts.language?.() ?? 'zh').startsWith('zh') ? `（还有 ${count} 条）` : ` (+${count} more)`;
   }
 
   /** 对话统计：本次运行几轮、最近一轮的时间线、最近的回复延迟 */
@@ -125,32 +181,8 @@ export class Conductor {
   /** 退出前调用，清掉计时。 */
   stop(): void {
     this.clearTimer();
-    if (this.noticeTimer) clearTimeout(this.noticeTimer);
-    this.noticeTimer = null;
-    this.notices = [];
-  }
-
-  /** 排队；同一来源还在排队就合进去 */
-  private queueNotice(key: string, text: string): void {
-    const waiting = this.notices.find((n) => n.key === key);
-    if (waiting) { waiting.text = text; waiting.more += 1; } else this.notices.push({ key, text, more: 0 });
-    this.pumpNotices();
-  }
-
-  private pumpNotices(): void {
-    if (this.noticeTimer || this.notices.length === 0) return;
-    const gap = this.opts.noticeGapMs ?? NOTICE_GAP_MS;
-    const wait = Math.max(0, this.lastNoticeAt + gap - this.now());
-    this.noticeTimer = setTimeout(() => {
-      this.noticeTimer = null;
-      const next = this.notices.shift();
-      if (!next) return;
-      this.lastNoticeAt = this.now();
-      const zh = (this.opts.language?.() ?? 'zh').startsWith('zh');
-      const more = next.more ? (zh ? `（还有 ${next.more} 条）` : ` (+${next.more} more)`) : '';
-      void this.say(next.text + more);
-      this.pumpNotices();
-    }, wait);
+    this.petNotices.stop();
+    this.maibotNotices.stop();
   }
 
   private async userSaid(event: EventEnvelope): Promise<void> {
@@ -286,4 +318,62 @@ function formatMs(ms: number): string {
 function preview(text: string): string {
   const chars = [...text.replace(/\s+/g, ' ')];
   return chars.length > PREVIEW_CHARS ? `${chars.slice(0, PREVIEW_CHARS).join('')}…` : chars.join('');
+}
+
+/** 一条等着处理的通知：say 是桌宠念的（截过、转义过），text 是交给麦麦的；more 是合进来的条数 */
+interface PendingNotice {
+  key: string;
+  /** 日志里的前缀 */
+  tag: string;
+  source: string;
+  say: string;
+  text: string;
+  more: number;
+}
+
+/**
+ * 通知队列：两条之间至少隔 gapMs；还在排队时同一 key 又来了，换成新的那条、more 加一。
+ * 排到时调 deliver（合并的说明由 deliver 加）。
+ */
+class NoticeQueue {
+  private items: PendingNotice[] = [];
+  private timer: NodeJS.Timeout | null = null;
+  private lastAt = -Infinity;
+
+  constructor(
+    private readonly gapMs: number,
+    private readonly now: () => number,
+    private readonly deliver: (n: PendingNotice) => void,
+  ) {}
+
+  push(n: PendingNotice): void {
+    const waiting = this.items.find((x) => x.key === n.key);
+    if (waiting) Object.assign(waiting, { ...n, more: waiting.more + n.more + 1 });
+    else this.items.push({ ...n });
+    this.pump();
+  }
+
+  stop(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.items = [];
+  }
+
+  private pump(): void {
+    if (this.timer || this.items.length === 0) return;
+    const wait = Math.max(0, this.lastAt + this.gapMs - this.now());
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      const next = this.items.shift();
+      if (!next) return;
+      this.lastAt = this.now();
+      this.deliver(next);
+      this.pump();
+    }, wait);
+  }
+}
+
+function clip(text: string, max: number): string {
+  const chars = [...text];
+  return chars.length > max ? chars.slice(0, max).join('') : text;
 }
