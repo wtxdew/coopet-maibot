@@ -216,6 +216,7 @@ if (shell) {
     link: () => ({ kind: cfg.link.kind, state: link.state(), since: linkSince, ...(linkReason ? { reason: linkReason } : {}), ...(link.botName() ? { botName: link.botName() } : {}) }),
     runlog, version: CLIENT_VERSION, startedAt: STARTED_AT,
     conversation: () => conductor?.stats() ?? null,
+    notices: () => noticeLog.recent(100),
     applyLink,
     extensions: extensionWorlds({
       runtime: worlds, persistWorld, records: extensions.records,

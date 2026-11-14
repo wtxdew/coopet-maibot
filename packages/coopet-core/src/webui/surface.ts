@@ -5,7 +5,8 @@
  * 这里给的（其余 WebApp 功能不给，相应接口回 503 加说明）：
  * - getStatus：`/api/status`。页面读 displayName（侧边栏的名字）、loop.paused（侧边栏的运行键）；
  *   另加 Coopet 自己的 link（MaiBot 连接：方式、状态、关闭原因、Bot 名字、两种 token 有没有设置）
- *   和 pet（桌宠是否在桌面上），连接卡用；运行诊断另读 version、startedAt、runId、events、log、conversation（对话统计）。
+ *   和 pet（桌宠是否在桌面上），连接卡用；运行诊断另读 version、startedAt、runId、events、log、conversation（对话统计）、
+ *   notices（最近 100 条通知记录，「通知」页签用）。
  * - config：`/api/config`。桌宠的配置说明书（desktopPetConfigGroups），只去掉语音识别和电脑操作两组；
  *   哪些项显示由页面自己决定（Coopanion 的「习惯」页只发它显示的键）。写入前 WebApp 已用 coerceGroupValues
  *   检查过类型和范围，这里写回 config.json 后 refresh，标了 x-hot 的项马上生效。
@@ -41,6 +42,7 @@ import { LINK_GROUP, linkGroup, linkTokens, linkValues, saveLinkValues } from '.
 import { LOG_GROUP, logGroup, logValues, saveLogValues } from './log-settings.ts';
 import { AUTO_UPDATE_KEY, autoUpdateProperties, saveUpdateValues, updateValues } from './update-settings.ts';
 import type { ConversationStats } from '../conductor/stats.ts';
+import type { NoticeRecord } from '../conductor/notice-log.ts';
 import type { extensionWorlds } from './extension-worlds.ts';
 import { ROUTE_PREFIX, routeGroup, routeOptions, routeValues, saveRoute } from './route-settings.ts';
 
@@ -68,6 +70,8 @@ export interface SurfaceDeps {
   startedAt: string;
   /** 对话统计（Conductor.stats）；Conductor 还没建好时为 null */
   conversation(): ConversationStats | null;
+  /** 最近的通知记录（新的在前）；没有时不显示「运行诊断 → 通知」 */
+  notices?(): NoticeRecord[];
   dirs: CoopetDirs;
   log: Logger;
   botName(): string;
@@ -176,6 +180,7 @@ export function createSurface(d: SurfaceDeps): WebAppDeps {
       events: { latest: d.store.latestCursor(), dir: d.dirs.events },
       log: { level: d.cfg.log.level, file: d.cfg.log.file, dir: d.dirs.logs },
       conversation: d.conversation(),
+      notices: d.notices?.() ?? [],
     }),
     debug: {
       runId: () => d.runlog.runId,
