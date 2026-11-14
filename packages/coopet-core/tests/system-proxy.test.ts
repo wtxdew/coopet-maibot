@@ -69,7 +69,8 @@ describe('system proxy in the Core runtime', () => {
     return { url: `http://127.0.0.1:${(server.address() as { port: number }).port}`, hits, stop };
   }
 
-  it('follows a proxy app that quits while the Core runs: fetch, node:http and child processes go direct again without a restart', async () => {
+  // Coopet 本地修改：这条起一个 Electron 子进程，比 vitest 默认的 5 秒慢（Coopanion 整体设了 testTimeout 20000），单独放宽
+  it('follows a proxy app that quits while the Core runs: fetch, node:http and child processes go direct again without a restart', { timeout: 30_000 }, async () => {
     const target = createServer((req, res) => res.end(`direct:${req.url}`));
     await new Promise<void>((r) => target.listen(0, '127.0.0.1', r));
     closing.push(() => { target.closeAllConnections(); target.close(); });
