@@ -78,13 +78,16 @@
 - [x] 断线重连、离线提示；没确认的消息不自动重发（阶段 1、2 的 link 与 Conductor 已实现；托盘显示连接状态）
 - [x] 插件拆成单独的仓库 [wtxdew/maibot-coopet-adapter](https://github.com/wtxdew/maibot-coopet-adapter)（2026-11-13，
   `git subtree split` 保留历史；协议文档一起移过去；发布 v0.1.0）
-- [ ] 插件上 MaiBot 官方插件市场（Mai-with-u/plugin-repo：开「Add Plugin」Issue，等校验和审核）
+- [x] 插件上 MaiBot 官方插件市场（2026-11-14 审核通过：Mai-with-u/plugin-repo#1629；v0.1.1 补上网关能力的声明）
 - [x] 外部通知：ntfy World 扩展（2026-11-14，[wtxdew/cortico-world-ntfy](https://github.com/wtxdew/cortico-world-ntfy)，npm 0.1.0，
   内置、默认启用）：一条长连接订阅所有话题，不轮询；断线按消息 id 补拉，离线时收到的只记录不念；话题是「片段_随机码」，
   每个话题有去向。经 ntfy.sh 实测：curl → 桌宠说出来
 - [x] 通知路由改成每个扩展三项（处理方式：桌宠 / 麦麦 / 规则 / 关闭；认不得的通知；最多念多少字），通知排队、同一来源合并（2026-11-14）
-- [ ] 自动更新（2026-11-14 代码完成，照 Coopanion 的 updater）：Windows 后台下载、静默安装；macOS 标题栏提示新版本。
-  实测待做：要有两个正式 Release（0.1.2 手动装上后，等下一个版本）
+- [ ] 自动更新（照 Coopanion 的 updater）：Windows 后台下载、静默安装；macOS 标题栏提示新版本。
+  2026-11-14：0.1.2 → 0.1.3 → 0.1.4 实测能下载、安装（差分下载只下约 1%）；0.1.4 修了气泡收不到的 bug，
+  加了托盘「重启并更新」、退出安装时的通知和装完重新打开。待验证：从 0.1.4 往后更新时这些都正常
+- [x] 发布自动化（2026-11-14）：推 `v*` tag，GitHub Actions 在 macOS 和 Windows 上跑测试、打包，传到草稿 Release（约 3 分钟）；
+  人试过后点发布。0.1.4 是第一个这样发的版本
 
 **完成标准**：在一台干净的机器上安装、填好地址就能用。
 
