@@ -186,7 +186,8 @@ Bot ID `<BOT_ID>`（麦麦）。现有适配器（SnowLuma、Discord、Beeper）
 JSON over WebSocket，`{type, id?, ...}`：
 
 - 握手：`hello{version, device_id, token}` → `welcome{version, session}`
-- 聊天：上行 `chat{text, images?}`、`touch{kind,count}`、`answer{...}`；下行 `reply{parts}`、`thinking{on}`、`notice{text}`
+- 聊天：上行 `chat{text, images?}`、`touch{kind,count}`、`answer{...}`、`notice{source, title?, text}`（扩展的通知交给麦麦，
+  插件 0.2.0 起，`welcome.features` 里声明）；下行 `reply{parts}`、`thinking{on}`。实际的协议以插件仓库的 `PROTOCOL.md` 为准
 - Agent：下行 `agent.task{task_id, goal, from}`；上行 `agent.progress{task_id, text}`、`agent.result{task_id, ok, text}`
 - LLM 代理：上行 `llm.request{id, messages, tools, task}`；下行 `llm.result{id, ...}`
 - 通用：`ack{id, error?}`、`ping/pong`；双方各自声明兼容的协议版本区间

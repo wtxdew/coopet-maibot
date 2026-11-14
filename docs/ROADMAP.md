@@ -69,7 +69,8 @@
   2026-11-13：扩展目录 `~/.config/coopet/extensions`、`ext add/remove/list` 命令、设置窗里的启用开关和面板、
   「桌宠直接说」的路由都已完成，Claude Code 完成通知实测可用
 - [ ] World 扩展第二步：通知交给麦麦（协议加 `notice`、插件更新，或借 MaiBot 的回复生成器转述，先查清接口）；
-  扩展名字和图标跟着界面语言和扩展自带的图标
+  扩展名字和图标跟着界面语言和扩展自带的图标。2026-11-14：协议 `notice` + `welcome.features`、插件把通知作为 MaiBot 的
+  通知消息（`is_notify`）交给麦麦、客户端「麦麦」去向（没连上或插件太旧时由桌宠说），单元测试都通过；待 NAS 上装插件 0.2.0 后实测
 - [x] 复用桌宠自带的装扮页和形象包导入（托盘「装扮…」打开 `/dress`）
 - [x] 打包 macOS arm64（2026-11-13，v0.1.0：`corepack pnpm run pack`；临时签名；数据目录换成各系统惯例位置并从
   `~/.config/coopet` 拷贝；内置 Coding Agent 通知扩展；`Coopet --ext` 装扩展；在本机用全新 HOME 和真实数据各验证一次）
