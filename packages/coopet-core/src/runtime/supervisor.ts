@@ -4,7 +4,7 @@
  *
  * 核心 → 外壳：ready（桌宠页面地址、设置窗后端的端口、界面语言）、language（界面语言改了）、link（连接状态）、
  *              pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、open-settings（桌宠菜单里点了设置、装扮等，带页面）、
- *              auto-update（自动更新的开关，启动时和改了时）、update-install（气泡里点了现在重启更新）、releases（打开 Release 页面）
+ *              auto-update（自动更新的开关，启动时和改了时）、update-install（气泡里点了现在重启更新）、releases（打开 Release 页面，可以指定版本）
  * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、click-through（托盘的鼠标穿透）、shutdown、
  *              update（更新器的一步，或 null：更新被取消；runtime/updates.ts 在气泡里说）
  *
@@ -21,7 +21,8 @@ export type ToShell =
   | { type: 'open-settings'; route?: string }
   | { type: 'auto-update'; enabled: boolean }
   | { type: 'update-install' }
-  | { type: 'releases' };
+  /** version：打开这个版本的 Release 页面（更新后的气泡）；不给时打开最新的 */
+  | { type: 'releases'; version?: string };
 
 export type FromShell =
   | { type: 'show-pet' }

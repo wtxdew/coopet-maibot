@@ -6,7 +6,7 @@
  * Ctrl+C 退出（会关掉 Electron 窗口）。被外壳启动时经 IPC 上报状态、接收指令（runtime/supervisor.ts）。
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { Conductor } from './conductor/conductor.ts';
 import { createDecorator } from './expr/decorate.ts';
@@ -31,6 +31,7 @@ import { loadWorldExtensions } from './runtime/extensions.ts';
 import { WorldRuntime } from './runtime/worlds.ts';
 import { SecretStore } from './runtime/secrets.ts';
 import { parseStep, sayUpdates } from './runtime/updates.ts';
+import { checkUpdated, sayUpdated } from './runtime/after-update.ts';
 import { canSelfUpdate } from './webui/update-settings.ts';
 import { join } from 'node:path';
 
@@ -41,6 +42,8 @@ const dirs = coopetDirs();
 // 数据目录换成各系统的惯例位置后，第一次启动时把 ~/.config/coopet 的内容拷贝过来（旧目录原样保留）
 const migratedFrom = migrateLegacyData(dirs.root) ? LEGACY_DATA_ROOT : null;
 // 读配置时还不知道日志级别和要不要写文件：这一步的提示只写到终端
+// 读配置之前看有没有 config.json：分辨全新安装和从旧版本升上来（runtime/after-update.ts）
+const hadConfig = existsSync(dirs.configFile);
 const { cfg, persistPet, persist, flush, worldSection, persistWorld } = loadConfig(dirs, { log: consoleLogger('coopet') });
 // 本次运行的结构化日志（设置窗「运行诊断」读它），和 Cortico 的格式一致
 const runlog = openRunlog(dirs.data);
@@ -144,6 +147,17 @@ const updates = shell ? sayUpdates({
   log: log.child('update'),
 }) : null;
 
+/** 更新后第一次启动：桌宠说一句更新到哪个版本了，可以打开这个版本的 Release 页面 */
+const justUpdated = checkUpdated(join(dirs.data, 'last-version.json'), CLIENT_VERSION, hadConfig);
+if (justUpdated) log.info(`这次是更新后第一次启动（v${CLIENT_VERSION}）`);
+const afterUpdate = shell && justUpdated ? sayUpdated({
+  version: CLIENT_VERSION,
+  pet: () => pet,
+  language: () => cfg.language,
+  releases: (version) => shell.send({ type: 'releases', version }),
+  log: log.child('update'),
+}) : null;
+
 let stopping = false;
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
@@ -152,6 +166,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     conductor?.stop();
     updates?.stop();
+    afterUpdate?.stop();
     await link.stop();
     await web?.stop();
     await worlds.stopAll();

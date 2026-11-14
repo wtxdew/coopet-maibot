@@ -56,6 +56,7 @@ function runApp() {
   const { createTray } = require('./tray.cjs');
   const { createConsoleWindow } = require('./console-window.cjs');
   const { coreEnvironment, lookupProxy, proxySource } = require('./core-env.cjs');
+  const { releasePage } = require('./release-page.cjs');
   /** @param {string} msg */
   const log = (msg) => console.log(`[app] ${msg}`);
 
@@ -183,7 +184,7 @@ function runApp() {
     else if (m?.type === 'auto-update') { setAutoUpdate(m.enabled === true); return; }
     // 先退出（停核心、收托盘图标）再装：安装程序会结束还在运行的 Coopet
     else if (m?.type === 'update-install') { installUpdateNow(); return; }
-    else if (m?.type === 'releases') { void shell.openExternal(RELEASES_URL); return; }
+    else if (m?.type === 'releases') { void shell.openExternal(releasePage(m.version, RELEASES_URL)); return; }
     refresh();
   });
 
