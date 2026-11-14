@@ -555,9 +555,10 @@ async function mount(ctx: PageContext): Promise<void> {
   const overlayBox = ui.h('div', 'companion-switchbox');
   overlayBox.append(overlay.el, overlayUrlBox);
   const ring = ui.checkbox(S.ring, { onChange: (on) => void save(RING_KEY, on, STATS_GROUP, ring.el) });
-  other.body.append(row(S.overlayLabel, overlayBox, S.overlayHint), row(S.ringLabel, ring.el, S.ringHint));
-  // Coopet 本地修改：不显示「其他」（OBS 叠加层、对话页的上下文圈）
-  void other;
+  // Coopet 本地修改：「其他」只有 OBS 画面，没有对话页的上下文圈（那是给模型看的上下文用量，Coopet 没有这一项）
+  void ring;
+  other.body.append(row(S.overlayLabel, overlayBox, S.overlayHint));
+  root.append(other.el);
 
   // the page is long: tabs under its title jump to each section, as other pages' tabs switch their views
   heading.append(sectionTabs(root.ownerDocument, signal, root, [
@@ -566,7 +567,8 @@ async function mount(ctx: PageContext): Promise<void> {
     { value: 'display', label: S.groupDisplay, el: display.el },
     { value: 'sounds', label: S.soundTitle, el: sounds.el },
     { value: 'speech', label: S.speechTitle, el: speechSheet.el },
-    // Coopet 本地修改：没有「电脑操作」「其他」的标签（这两节不显示）
+    // Coopet 本地修改：没有「电脑操作」的标签（这一节不显示）
+    { value: 'other', label: S.groupOther, el: other.el },
   ]).el);
 
   /* ---------- behaviour ---------- */
