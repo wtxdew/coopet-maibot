@@ -107,8 +107,12 @@ corepack pnpm run pack       # 打包到 dist/
 macOS 上打出 `.dmg` 和 `.zip`（`PACK_ARCH=x64` 可以打 Intel 版）；Windows 上打出 `Coopet-Setup-<版本>.exe`
 （也可以在 macOS 上用 `PACK_PLATFORM=win32` 交叉构建）。
 
-发布：两个平台各自打包，传到同一个 GitHub Release，**连同 `latest.yml`（Windows）、`latest-mac.yml` 和 `.blockmap`**，
-自动更新靠它们找新版本。Release 要发成正式的（不勾 pre-release）：更新器和标题栏都不认 pre-release。
+发布：改好三个 `package.json` 的版本号、提交，推一个同名的 tag（例如 `v0.1.4`）。GitHub Actions（`.github/workflows/release.yml`）
+在 macOS 和 Windows 上各打一个包，连同自动更新要的 `latest.yml`、`latest-mac.yml` 和 `.blockmap` 传到这个 tag 的**草稿** Release；
+装上试过之后，在 GitHub 上把草稿发布成正式的（不勾 pre-release：更新器和标题栏都不认 pre-release）。
+
+版本号：只修 bug 升第三位（0.1.3 → 0.1.4），加功能升第二位（0.1.4 → 0.2.0），不兼容的改动升第一位；
+0.x 阶段第二位也用于不兼容的改动。
 
 测试和类型检查：
 
