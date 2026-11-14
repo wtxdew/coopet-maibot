@@ -371,7 +371,7 @@ describe('extension worlds in the settings window', () => {
     expect(page.configGroups).toEqual(['world:demo', 'coopet.route.demo']);
     const group = ((await t.get('/api/config')).body.groups as Array<{ group: { id: string }; values: Record<string, unknown> }>).find((g) => g.group.id === 'coopet.route.demo');
     expect(group?.values).toEqual({ 'route.mode': 'pet', 'route.unknown': 'record', 'route.maxChars': 80 });
-    expect((await t.get('/api/config/options/coopet.route-mode')).body.options.map((o: { label: string }) => o.label)).toEqual(['桌宠', '麦麦（还不能用）', '规则', '关闭']);
+    expect((await t.get('/api/config/options/coopet.route-mode')).body.options.map((o: { label: string }) => o.label)).toEqual(['桌宠', '麦麦', '规则', '关闭']);
     expect((await t.get('/api/config/options/coopet.route-unknown')).body.options.map((o: { value: string }) => o.value)).toEqual(['record', 'pet', 'maibot']);
     expect((await t.post('/api/config', { group: 'coopet.route.demo', values: { 'route.mode': 'off', 'route.maxChars': 60 } })).body.result).toBe('已保存');
     expect(t.loaded.cfg.routes).toEqual({ demo: { mode: 'off', unknown: 'record', maxChars: 60 } });
