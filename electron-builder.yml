@@ -38,6 +38,9 @@ mac:
     # 「本地网络」权限的说明：从访达打开的应用连局域网（MaiBot 所在的主机）要用户授权，
     # 没有这句说明时系统不弹授权框、直接拒绝连接（表现为连接立即以 1006 断开）
     NSLocalNetworkUsageDescription: Coopet 要连接你局域网里的 MaiBot。
+    # 「麦克风」权限的说明（语音输入）：没有这句时系统直接拒绝录音，不弹授权框。
+    # 说话键要的「输入监控」没有对应的说明键，系统第一次读键盘时自己会问
+    NSMicrophoneUsageDescription: Coopet 要用麦克风听你说话，识别在本机进行。
 dmg:
   writeUpdateInfo: false
 # Windows：按用户安装（不要管理员权限），可以选安装位置；不签名，第一次运行 SmartScreen 会拦一下，点「仍要运行」。
