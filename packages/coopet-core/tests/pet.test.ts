@@ -7,7 +7,7 @@ import type { ToolOutcome } from 'cortico/core/types.ts';
 import { coopetDirs, loadConfig } from '../src/runtime/config.ts';
 import { MemoryEventStore } from '../src/runtime/event-store.ts';
 import { consoleLogger } from '../src/runtime/log.ts';
-import { startPet } from '../src/runtime/pet.ts';
+import { ASR_API_KEY_SECRET, startPet } from '../src/runtime/pet.ts';
 
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -69,6 +69,30 @@ describe('startPet (no window)', () => {
       }
     } finally {
       await new Promise<void>((done) => taken.close(() => done()));
+      flush();
+    }
+  });
+
+  // 「语音输入」页选转写服务时填的 API Key 存进 Coopet 的密钥文件；面板只看到存没存
+  it('keeps the transcription API key in the secret store', async () => {
+    const dirs = coopetDirs(mkdtempSync(join(tmpdir(), 'coopet-pet-')));
+    const { cfg, persistPet, flush } = loadConfig(dirs);
+    cfg.pet.window.enabled = false;
+    cfg.pet.port = await freePort();
+    const saved = new Map<string, string>();
+    const secrets = { get: (name: string) => saved.get(name) ?? '', set: (name: string, value: string) => { saved.set(name, value); } };
+    const pet = await startPet({
+      cfg: cfg.pet, persist: persistPet, dirs, store: new MemoryEventStore(), secrets,
+      log: consoleLogger('test', 'warn'), onEvent: () => {}, botName: () => '麦麦', language: () => 'zh',
+    });
+    try {
+      const voice = (state: unknown) => (state as { api: { keySaved: boolean; baseUrl: string } }).api;
+      const invoke = pet.webUi('zh').invoke!;
+      expect(voice(await invoke('voice', 'setApi', [{ baseUrl: 'https://asr.example/v1', key: ' sk-test ' }]))).toMatchObject({ keySaved: true, baseUrl: 'https://asr.example/v1' });
+      expect(saved.get(ASR_API_KEY_SECRET)).toBe('sk-test');
+      expect(JSON.stringify(await invoke('voice', 'state', []))).not.toContain('sk-test');
+    } finally {
+      await pet.stop();
       flush();
     }
   });

@@ -78,10 +78,14 @@ link.onState((s, reason) => {
 // Conductor 要用 pet，pet 的事件又要交给 Conductor：先占位，pet 启动后再接上
 let conductor: Conductor | null = null;
 
+/** 密钥文件：桌宠（语音转写服务的 API Key）和 World 扩展（例如 ntfy 的 token）共用 */
+const secrets = new SecretStore(join(dirs.root, 'secrets.json'));
+
 const pet = await startPet({
   cfg: cfg.pet,
   persist: persistPet,
   dirs,
+  secrets,
   store,
   log,
   botName,
@@ -115,7 +119,7 @@ const extensions = await loadWorldExtensions(dirs, log.child('extensions'));
 const worlds = new WorldRuntime({
   definitions: extensions.worlds,
   config: { worldSection, persistWorld },
-  secrets: new SecretStore(join(dirs.root, 'secrets.json')),
+  secrets,
   dirs, store, log: log.child('worlds'), botName,
   onEvent: (worldId, e) => conductor?.worldEvent(worldId, e),
 });

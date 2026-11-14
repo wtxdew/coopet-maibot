@@ -17,6 +17,10 @@ import { DesktopPetWorld, type DesktopPetConfigSection, type PetBotControls, typ
 import type { CoopetDirs } from './config.ts';
 import type { MemoryEventStore } from './event-store.ts';
 import { createWorldHost, MAIBOT_MODEL_FACTS, type HostedEvent } from './world-host.ts';
+import type { SecretStore } from './secrets.ts';
+
+/** 语音转写服务的 API Key 在密钥文件里的名字：和桌宠包的 DESKTOP_PET_SECRETS.asrApiKey（src/config.ts，包没有导出）一致 */
+export const ASR_API_KEY_SECRET = 'DESKTOP_PET_ASR_API_KEY';
 
 export interface PetHostOptions {
   /** 活的桌宠配置对象（loadConfig 返回的 cfg.pet），桌宠每次用到时才读 */
@@ -35,6 +39,8 @@ export interface PetHostOptions {
   controls?: PetBotControls;
   /** 桌宠窗口出现在桌面上或离开（显示/隐藏、打开/关闭）时调用 */
   onDesktopChange?: (onDesktop: boolean) => void;
+  /** 存语音转写服务的 API Key（「语音输入」页选「OpenAI 兼容的转写服务」时）；没有时存不了 */
+  secrets?: Pick<SecretStore, 'get' | 'set'>;
 }
 
 export interface PetHandle {
@@ -88,6 +94,10 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
     modelLanguage: () => 'zh',
     ...(opts.controls ? { controls: opts.controls } : {}),
     ...(opts.onDesktopChange ? { onDesktopChange: opts.onDesktopChange } : {}),
+    ...(opts.secrets ? {
+      asrApiKey: () => opts.secrets!.get(ASR_API_KEY_SECRET),
+      storeAsrApiKey: (key: string) => opts.secrets!.set(ASR_API_KEY_SECRET, key),
+    } : {}),
   });
 
   const host = createWorldHost({
