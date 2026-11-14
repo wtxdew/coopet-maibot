@@ -3,6 +3,8 @@
  *
  * - 运行：Coopet 自己的状态卡（核心、MaiBot 连接、桌宠、对话统计、记录；每 2 秒读一次 /api/status），
  *   下面是 Coopanion 的事件流（/api/events）。
+ * - 通知：扩展通知的处理记录（/api/status 的 notices，最近 100 条，新的在前）：时间、来源、内容、去向、结果
+ *   （桌宠说了、合并、交给麦麦、她说了什么、退回桌宠的原因、没处理的原因）。在这个页签时和「运行」一样每 2 秒读一次。
  * - 运行日志：Coopanion 的运行日志（/api/log、/api/runs：本次和最近 7 天每次运行的结构化日志）。
  * - 配置：Coopanion 的通用配置表单，只放 `coopet.log`（日志级别、写不写文本日志）。
  *
@@ -30,6 +32,21 @@ const LAST_SUB_KEY = 'coopet.diagnostics.sub';
 
 type Step = 'sent' | 'acked' | 'thinking' | 'reply' | 'bubble';
 type Outcome = 'replied' | 'no-reply' | 'not-sent' | 'disconnected';
+type NoticeResult = 'skipped' | 'queued' | 'said' | 'merged' | 'handed' | 'replied' | 'silent';
+
+/** 一条通知记录（core 的 conductor/notice-log.ts） */
+interface NoticeRecord {
+  id: string;
+  at: string;
+  source: string;
+  text: string;
+  route: 'pet' | 'maibot' | null;
+  skip?: string;
+  fallback?: string;
+  result: NoticeResult;
+  mergedInto?: string;
+  reply?: string;
+}
 
 /** /api/status 里诊断页读的字段（webui/surface.ts） */
 interface Status {
@@ -46,6 +63,7 @@ interface Status {
     last: { cursor: number; via: 'typed' | 'voice'; at: string; steps: Array<{ step: Step; ms: number }>; outcome?: Outcome } | null;
     recent: { replied: number; medianReplyMs: number | null; maxReplyMs: number | null };
   } | null;
+  notices?: NoticeRecord[];
 }
 
 const S = pick({
@@ -58,6 +76,23 @@ const S = pick({
     subRunlog: '运行日志',
     subConfig: '配置',
     configEmpty: '没有可调的设置',
+    subNotices: '通知',
+    noticesTitle: '通知记录',
+    noticesHint: '扩展的每条通知去了哪里、结果如何（最近 100 条）。「麦麦说了」按时间推断：交给她之后 90 秒内她的第一条主动回复。',
+    noticesEmpty: '还没有通知',
+    cols: { at: '时间', source: '来源', text: '内容', route: '去向', result: '结果' },
+    routes: { pet: '桌宠', maibot: '麦麦' } as Record<string, string>,
+    skips: { off: '关闭', 'rule-off': '规则里关掉', 'no-renderer': '认不得，只记录', empty: '内容为空' } as Record<string, string>,
+    results: {
+      skipped: (why: string) => `没处理（${why}）`,
+      queued: () => '排队中',
+      said: () => '桌宠说了',
+      fellBack: (why: string) => `退回桌宠说了（${why}）`,
+      merged: (when: string) => `合并到 ${when} 那条`,
+      handed: () => '已交给麦麦，等她说',
+      replied: (text: string) => `麦麦说了：「${text}」`,
+      silent: () => '麦麦没说',
+    },
     netOffline: '调试通道断开，事件流改为轮询',
     core: '核心', version: '版本', uptime: '已运行', run: '本次运行',
     link: 'MaiBot 连接', kind: '方式', state: '状态', bot: 'Bot 名字', lastReason: '断开原因', since: '已持续',
@@ -82,6 +117,23 @@ const S = pick({
     subRunlog: 'Run log',
     subConfig: 'Settings',
     configEmpty: 'Nothing to set',
+    subNotices: 'Notices',
+    noticesTitle: 'Notice record',
+    noticesHint: 'Where each extension notice went and how it ended (last 100). "MaiBot said" is inferred by time: her first unprompted reply within 90 s of handing it over.',
+    noticesEmpty: 'No notices yet',
+    cols: { at: 'Time', source: 'Source', text: 'Content', route: 'To', result: 'Result' },
+    routes: { pet: 'Pet', maibot: 'MaiBot' } as Record<string, string>,
+    skips: { off: 'off', 'rule-off': 'off by rule', 'no-renderer': 'unknown, only recorded', empty: 'empty' } as Record<string, string>,
+    results: {
+      skipped: (why: string) => `Not handled (${why})`,
+      queued: () => 'Waiting',
+      said: () => 'The pet said it',
+      fellBack: (why: string) => `The pet said it instead (${why})`,
+      merged: (when: string) => `Merged into the one at ${when}`,
+      handed: () => 'Handed to MaiBot, waiting',
+      replied: (text: string) => `MaiBot said: "${text}"`,
+      silent: () => 'MaiBot said nothing',
+    },
     netOffline: 'Debug channel lost; the event stream polls instead',
     core: 'Core', version: 'Version', uptime: 'Up for', run: 'This run',
     link: 'MaiBot link', kind: 'Connection', state: 'State', bot: 'Bot name', lastReason: 'Last drop', since: 'For',
@@ -124,6 +176,7 @@ function mount(ctx: FeatureContext): Disposable | void {
   const doc = ctx.root.ownerDocument;
   const subs = [
     { value: 'run', label: S.subRun },
+    { value: 'notices', label: S.subNotices },
     { value: 'runlog', label: S.subRunlog },
     { value: 'config', label: S.subConfig },
   ];
@@ -207,10 +260,51 @@ function mount(ctx: FeatureContext): Disposable | void {
       ]),
     );
   };
+  // ── 通知：处理记录 ──
+  const noticesCard = ui.sheet({ title: S.noticesTitle });
+  noticesCard.el.classList.add('coopet-notices');
+  const noticesList = ui.h('div', 'coopet-notices-list');
+  noticesCard.body.append(ui.h('p', 'coopet-notices-hint', S.noticesHint), noticesList);
+  const clock = (iso: string): string => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return S.none;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    return d.toDateString() === new Date().toDateString() ? time : `${d.getMonth() + 1}/${d.getDate()} ${time}`;
+  };
+  const renderNotices = (): void => {
+    const records = status?.notices ?? [];
+    if (records.length === 0) { noticesList.replaceChildren(ui.h('p', 'coopet-notices-empty', S.noticesEmpty)); return; }
+    const byId = new Map(records.map((r) => [r.id, r]));
+    const table = ui.h('table', 'coopet-notices-table');
+    const head = ui.h('tr');
+    for (const c of [S.cols.at, S.cols.source, S.cols.text, S.cols.route, S.cols.result]) head.append(ui.h('th', null, c));
+    table.append(head);
+    for (const r of records) {
+      const result = r.result === 'skipped' ? S.results.skipped(S.skips[r.skip ?? ''] ?? r.skip ?? S.none)
+        : r.result === 'said' && r.fallback ? S.results.fellBack(r.fallback)
+        : r.result === 'merged' ? S.results.merged(byId.has(r.mergedInto ?? '') ? clock(byId.get(r.mergedInto!)!.at) : S.none)
+        : r.result === 'replied' ? S.results.replied(r.reply ?? '')
+        : r.result === 'said' ? S.results.said()
+        : r.result === 'handed' ? S.results.handed()
+        : r.result === 'silent' ? S.results.silent()
+        : S.results.queued();
+      const tone = r.result === 'skipped' || r.result === 'merged' ? 'muted' : r.fallback ? 'warn' : r.result === 'replied' || r.result === 'said' ? 'ok' : '';
+      const row = ui.h('tr', tone ? `is-${tone}` : null);
+      const text = ui.h('td', 'coopet-notices-text', r.text);
+      text.title = r.text;
+      row.append(ui.h('td', 'coopet-notices-at', clock(r.at)), ui.h('td', null, r.source), text,
+        ui.h('td', null, r.route ? S.routes[r.route] ?? r.route : S.none), ui.h('td', 'coopet-notices-result', result));
+      table.append(row);
+    }
+    noticesList.replaceChildren(table);
+  };
+
   const readStatus = async (): Promise<void> => {
     try {
       status = await get<Status>('/api/status', { signal: ctx.signal });
       renderStatus();
+      renderNotices();
     } catch (err) {
       if ((err as { name?: string } | null)?.name !== 'AbortError') ctx.onError(err);
     }
@@ -228,10 +322,11 @@ function mount(ctx: FeatureContext): Disposable | void {
     emptyText: S.configEmpty,
   });
 
-  const panes: Record<string, HTMLElement> = { run: runPane, runlog: runlog.el, config: config.el };
+  const panes: Record<string, HTMLElement> = { run: runPane, notices: noticesCard.el, runlog: runlog.el, config: config.el };
   let debugOnline = false;
   const enter: Record<string, () => void> = {
     run: () => { renderStatus(); void readStatus(); void events.init(); events.setPolling(!debugOnline); },
+    notices: () => { renderNotices(); void readStatus(); },
     runlog: () => { void runlog.refresh(); },
     config: () => { void config.load(); },
   };
@@ -252,7 +347,7 @@ function mount(ctx: FeatureContext): Disposable | void {
     const sub = typeof route.segments[1] === 'string' ? route.segments[1] : 'run';
     if (sub !== current) show(sub, false);
   }));
-  ctx.lifecycle.interval(() => { if (current === 'run' && !doc.hidden) void readStatus(); }, POLL_MS);
+  ctx.lifecycle.interval(() => { if ((current === 'run' || current === 'notices') && !doc.hidden) void readStatus(); }, POLL_MS);
 
   if (ctx.capabilities.debug === true) {
     openFrameworkSocket({
