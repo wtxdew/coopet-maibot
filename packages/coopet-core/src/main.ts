@@ -163,6 +163,10 @@ if (shell) {
     if (m.type === 'show-pet') void pet.show();
     else if (m.type === 'hide-pet') void pet.hide();
     else if (m.type === 'toggle-pet') void pet.toggle();
+    else if (m.type === 'click-through') {
+      log.info(`鼠标穿透：${m.on ? '开' : '关'}`);
+      void pet.setClickThrough(m.on === true).catch((err: Error) => log.warn(`鼠标穿透没设上：${err.message}`));
+    }
     else if (m.type === 'shutdown') void shutdown('外壳要求退出');
     else if (m.type === 'update') {
       const step = parseStep(m.step);

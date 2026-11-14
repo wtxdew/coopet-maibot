@@ -5,7 +5,7 @@
  * 核心 → 外壳：ready（桌宠页面地址、设置窗后端的端口、界面语言）、language（界面语言改了）、link（连接状态）、
  *              pet（窗口是否在桌面上）、quit（桌宠菜单里点了退出）、open-settings（桌宠菜单里点了设置、装扮等，带页面）、
  *              auto-update（自动更新的开关，启动时和改了时）、update-install（气泡里点了现在重启更新）、releases（打开 Release 页面）
- * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、shutdown、
+ * 外壳 → 核心：show-pet、hide-pet、toggle-pet（由核心按桌宠的实时状态决定显示还是隐藏）、click-through（托盘的鼠标穿透）、shutdown、
  *              update（更新器的一步，或 null：更新被取消；runtime/updates.ts 在气泡里说）
  *
  * 设置窗不走这里：它直接和核心里的设置窗后端（Cortico WebApp，webui/surface.ts）说话。
@@ -27,6 +27,8 @@ export type FromShell =
   | { type: 'show-pet' }
   | { type: 'hide-pet' }
   | { type: 'toggle-pet' }
+  /** 托盘的「鼠标穿透」：点击都穿过桌宠；只在这次运行有效，核心重启后外壳会再发一次 */
+  | { type: 'click-through'; on: boolean }
   | { type: 'shutdown' }
   | { type: 'update'; step: unknown };
 
@@ -46,7 +48,7 @@ export interface IpcProcess {
 }
 
 /** 收得下的外壳消息。写成以 FromShell 的 type 为键的表：FromShell 加了新类型而这里漏写，类型检查就会报错 */
-const FROM_SHELL: Readonly<Record<FromShell['type'], true>> = { 'show-pet': true, 'hide-pet': true, 'toggle-pet': true, shutdown: true, update: true };
+const FROM_SHELL: Readonly<Record<FromShell['type'], true>> = { 'show-pet': true, 'hide-pet': true, 'toggle-pet': true, 'click-through': true, shutdown: true, update: true };
 
 export function connectSupervisor(proc: IpcProcess = process as unknown as IpcProcess): Supervisor | null {
   if (typeof proc.send !== 'function') return null;

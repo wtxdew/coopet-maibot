@@ -40,6 +40,9 @@ describe('startPet (no window)', () => {
       pet.phase({ state: 'model', running: [] });
       pet.phase({ state: 'idle', running: [] });
       pet.turnEnded();
+      // 托盘的鼠标穿透交给桌宠，桌宠的状态里看得到
+      await pet.setClickThrough(true);
+      expect((await pet.webUi('zh').invoke!('pet', 'state', []) as { clickThrough?: boolean }).clickThrough).toBe(true);
     } finally {
       await pet.stop();
       flush();

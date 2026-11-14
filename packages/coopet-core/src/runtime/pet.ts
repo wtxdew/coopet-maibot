@@ -60,6 +60,8 @@ export interface PetHandle {
   hide(): Promise<void>;
   /** 按实时状态在显示和隐藏之间切换 */
   toggle(): Promise<void>;
+  /** 鼠标穿透：点击都穿过桌宠落到下面的窗口，桌宠照常走动和说话（桌宠的 setClickThrough，不存进配置） */
+  setClickThrough(on: boolean): Promise<void>;
   /** 改了配置对象后调用：把新设置推给桌宠页面（world.refresh） */
   refresh(): void;
   /** 桌宠给设置窗的页面声明（面板、配置组、链接、状态灯；面板调用和数据流也从这里走） */
@@ -113,8 +115,8 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
   log.info(`桌宠已启动：${origin}/`);
 
   // 显示、隐藏没有单独的公开方法，走桌宠面板的公开调用入口（Coopanion 的设置窗也走这里）
-  const panel = async (method: string): Promise<void> => {
-    await world.webUi('zh').invoke?.('pet', method, []);
+  const panel = async (method: string, args: unknown[] = []): Promise<void> => {
+    await world.webUi('zh').invoke?.('pet', method, args);
   };
   const onDesktop = (): boolean => world.petState().onDesktop === true;
   /**
@@ -146,6 +148,7 @@ export async function startPet(opts: PetHostOptions): Promise<PetHandle> {
       if (onDesktop()) await hide();
       else await show();
     },
+    setClickThrough: (on) => panel('setClickThrough', [on]),
     refresh: () => world.refresh(),
     webUi: (language) => world.webUi(language),
     toolNames: () => world.tools().map((t) => t.name),

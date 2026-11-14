@@ -40,6 +40,14 @@ describe('connectSupervisor', () => {
     expect(got).toEqual([{ type: 'update', step: { phase: 'ready', version: '0.1.4' } }, { type: 'update', step: null }]);
   });
 
+  it('passes the tray click-through switch on', () => {
+    const proc = new FakeProc();
+    const got: FromShell[] = [];
+    connectSupervisor(proc)!.onMessage((m) => got.push(m));
+    proc.emit('message', { type: 'click-through', on: true });
+    expect(got).toEqual([{ type: 'click-through', on: true }]);
+  });
+
   it('reports a disconnect', () => {
     const proc = new FakeProc();
     let gone = false;
