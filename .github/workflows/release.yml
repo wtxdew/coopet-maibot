@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-latest
             files: dist/Coopet-*-mac-*.dmg dist/Coopet-*-mac-*.zip dist/Coopet-*-mac-*.zip.blockmap dist/latest-mac.yml
           - os: windows-latest
             files: dist/Coopet-Setup-*.exe dist/Coopet-Setup-*.exe.blockmap dist/latest.yml
