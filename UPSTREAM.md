@@ -19,6 +19,7 @@ Local changes to vendored code (each marked `Coopet 本地修改` in the source)
 - `console/features/home/index.ts`: the 「连接 MaiBot」 card (`console/coopet/connection-card.ts`) takes the 「连接模型」 card's place, and the pet preview's height follows it (Coopet's model lives in MaiBot).
 - `packages/cortico-world-desktop-pet/src/webui/client.ts`: no window runtime install button while an external window program (`CORTICO_DESKTOP_PET_HOST`) is in use. A status row in the error state shows its detail in red (`style.css` has the rule), and the voice panel's 收音方式 row is in that state while the talk key cannot be read (no Input Monitoring permission, say), whose reason is its detail.
 - `console/features/pet/index.ts` (习惯): no 称呼, Coo 的名字, 使用统计, 回应模式, 自主配置权限 rows, no 电脑操作 section, and 其他 holds only the OBS overlay, without the Chat page's context ring (MaiBot decides these, or they steer a model Coopet does not run); the section tabs under the title have no 电脑操作 tab.
+- `packages/cortico-world-desktop-pet/src/i18n/*.ts`: the talk key's missing Input Monitoring message names Coopet, the app to allow, instead of Coopanion.
 - `console/features/home/index.ts`: no 使用向导 (the guide is the embedding app's; Coopet has none).
 - `console/features/chat/index.ts`: no 控制台 link (that page is not mounted); without an avatar the bot's initial shows instead of a broken image.
 - `console/rail/index.ts`: no 「高级模式」 toggle (Coopet has no backend for the advanced pages), no pause key or run state (Cortico's model session pause), and the name is read-only (it is MaiBot's bot name).
