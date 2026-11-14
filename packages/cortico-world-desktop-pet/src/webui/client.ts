@@ -74,6 +74,8 @@ function statusRow(ctx: WebUiPanelContext, name: string) {
       detail.textContent = more;
       // cut with an ellipsis where the row is short of room: the whole line on hover
       detail.title = more;
+      // Coopet 本地修改：出错时说明用红字（例如说话键缺「输入监控」权限），不要和普通说明一样是灰字
+      detail.classList.toggle('bad', tone === 'bad');
       dot.className = `navdot ${tone === 'on' ? 'ok' : tone === 'bad' ? 'bad' : tone === 'busy' ? 'warn' : ''}`;
     },
   };
@@ -329,7 +331,8 @@ const voicePanel: WebUiPanel = {
       if (!capture) keyRow.set(input.keyLabel, input.hotkeyProblem ? 'bad' : 'on');
       pressSel.hidden = input.mode === 'always';
       keyRow.row.style.display = input.mode === 'always' ? 'none' : '';
-      modeRow.set(input.open ? t.listening : t.waitingKey, input.open ? 'on' : 'off', input.hint);
+      // Coopet 本地修改：说话键读不了时（说明里写着原因）这一行也标成出错
+      modeRow.set(input.open ? t.listening : t.waitingKey, input.open ? 'on' : input.hotkeyProblem ? 'bad' : 'off', input.hint);
       onPressRow.row.style.display = input.mode === 'hold' ? '' : 'none';
       onPress.checked = input.openOnPress;
       onPressRow.set(input.openOnPress ? t.switchOn : t.switchOff, input.openOnPress ? 'on' : 'off', t.openOnPressHint);
