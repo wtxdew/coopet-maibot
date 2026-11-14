@@ -17,6 +17,7 @@ const WELCOME = { type: 'welcome', protocol: 0, bot: { name: '麦麦', account_i
 async function fakePlugin(behaviour: {
   onHello?: (ws: WebSocket, hello: Record<string, unknown>) => void;
   onChat?: (ws: WebSocket, chat: { id: string; text: string }) => void;
+  onNotice?: (ws: WebSocket, notice: Record<string, unknown> & { id: string }) => void;
 } = {}, opts: ServerOptions = {}) {
   const wss = new WebSocketServer({ port: 0, host: '127.0.0.1', ...opts });
   await new Promise<void>((r) => wss.once('listening', () => r()));
@@ -31,6 +32,8 @@ async function fakePlugin(behaviour: {
         (behaviour.onHello ?? ((s) => s.send(JSON.stringify(WELCOME))))(ws, frame);
       } else if (frame.type === 'chat') {
         (behaviour.onChat ?? ((s, c) => s.send(JSON.stringify({ type: 'ack', id: c.id, ok: true }))))(ws, frame);
+      } else if (frame.type === 'notice') {
+        (behaviour.onNotice ?? ((s, n) => s.send(JSON.stringify({ type: 'ack', id: n.id, ok: true }))))(ws, frame);
       }
     });
   });
@@ -107,6 +110,32 @@ describe('CoopetPluginLink', () => {
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     ok = false;
     await expect(l.send({ text: 'x' })).rejects.toThrow(/rejected/);
+  });
+
+  it('sends notices only to a plugin that offers them, and waits for the ack', async () => {
+    const notices: Array<Record<string, unknown>> = [];
+    const plugin = await fakePlugin({
+      onHello: (ws) => ws.send(JSON.stringify({ ...WELCOME, features: ['notice'] })),
+      onNotice: (ws, n) => { notices.push(n); ws.send(JSON.stringify({ type: 'ack', id: n.id, ok: true })); },
+    });
+    const { link: l } = link(plugin.url);
+    expect(l.supportsNotice()).toBe(false);
+    l.start();
+    await until(() => l.state() === 'open');
+    expect(l.supportsNotice()).toBe(true);
+    const { id } = await l.notice({ source: 'ntfy', text: '构建完成' });
+    expect(notices).toEqual([{ type: 'notice', id, source: 'ntfy', text: '构建完成' }]);
+    await l.notice({ source: 'ntfy', title: 'CI', text: 'ok' });
+    expect(notices[1]).toMatchObject({ title: 'CI' });
+  });
+
+  it('refuses notices to an older plugin without the feature', async () => {
+    const plugin = await fakePlugin();
+    const { link: l } = link(plugin.url);
+    l.start();
+    await until(() => l.state() === 'open');
+    expect(l.supportsNotice()).toBe(false);
+    await expect(l.notice({ source: 'ntfy', text: 'x' })).rejects.toThrow(/0\.2\.0/);
   });
 
   it('rejects send when no ack arrives in time', async () => {

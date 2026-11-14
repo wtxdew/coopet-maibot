@@ -3,6 +3,7 @@
  *
  * - 握手：WS 打开后发 hello，收到 welcome 才算 open；welcome 带 Bot 名字和身份。
  * - 发消息：chat 带 UUID，等对应的 ack（10 秒），ok 才算 MaiBot 收下。
+ * - 转通知：welcome.features 里有 notice（插件 0.2.0 起）时可以发 notice，同样等 ack。
  * - 收消息：reply → onMessage；thinking → onThinking；error 记日志；不认识的 type 忽略。
  * - 重连：1s 起翻倍，最长 30s；4001（token）、4002（协议版本）、4003（被顶替）不重连。
  * - 心跳：服务端会 ping；客户端也每 30s ping 一次，10s 没回 pong 就断开重连。
@@ -12,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import WebSocket from 'ws';
 import type { Logger } from 'cortico/core/types.ts';
-import type { IncomingMessage, IncomingPart, Link, LinkState, OutgoingChat } from './types.ts';
+import type { IncomingMessage, IncomingPart, Link, LinkState, OutgoingChat, OutgoingNotice } from './types.ts';
 
 export const PROTOCOL_VERSION = 0;
 
@@ -49,6 +50,8 @@ export class CoopetPluginLink implements Link {
   private running = false;
   private token = '';
   private name: string | undefined;
+  /** 插件在 welcome 里声明的可选消息（features）；每次连上时换成新的 */
+  private features = new Set<string>();
   private retryMs: number;
   private retryTimer: NodeJS.Timeout | null = null;
   private pingTimer: NodeJS.Timeout | null = null;
@@ -114,6 +117,20 @@ export class CoopetPluginLink implements Link {
   }
 
   send(msg: OutgoingChat): Promise<{ id: string }> {
+    return this.request('chat', { text: msg.text });
+  }
+
+  supportsNotice(): boolean {
+    return this.current === 'open' && this.features.has('notice');
+  }
+
+  notice(n: OutgoingNotice): Promise<{ id: string }> {
+    if (this.current === 'open' && !this.features.has('notice')) return Promise.reject(new Error('插件太旧，不支持转通知（要 0.2.0 以上）'));
+    return this.request('notice', { source: n.source, text: n.text, ...(n.title ? { title: n.title } : {}) });
+  }
+
+  /** 发一帧带 id 的消息，等对应的 ack */
+  private request(type: 'chat' | 'notice', body: Record<string, string>): Promise<{ id: string }> {
     const ws = this.ws;
     if (this.current !== 'open' || !ws) return Promise.reject(new Error('还没连上 MaiBot'));
     const id = randomUUID();
@@ -123,8 +140,8 @@ export class CoopetPluginLink implements Link {
         reject(new Error(`${this.ackTimeoutMs / 1000} 秒内没收到确认`));
       }, this.ackTimeoutMs);
       this.pending.set(id, { resolve, reject, timer });
-      const frame = JSON.stringify({ type: 'chat', id, text: msg.text });
-      this.opts.log.debug(`→ chat ${Buffer.byteLength(frame)} 字节`);
+      const frame = JSON.stringify({ type, id, ...body });
+      this.opts.log.debug(`→ ${type} ${Buffer.byteLength(frame)} 字节`);
       ws.send(frame, (err) => {
         if (!err) return;
         clearTimeout(timer);
@@ -219,9 +236,10 @@ export class CoopetPluginLink implements Link {
       case 'welcome': {
         const bot = frame.bot as { name?: unknown } | undefined;
         this.name = typeof bot?.name === 'string' && bot.name ? bot.name : undefined;
+        this.features = new Set(Array.isArray(frame.features) ? frame.features.filter((f): f is string => typeof f === 'string') : []);
         this.retryMs = this.backoff.initialMs;
         this.openedAt = Date.now();
-        this.opts.log.info(`已连上插件（握手 ${this.openedAt - this.connectStartedAt}ms，Bot：${this.name ?? '未知'}）`);
+        this.opts.log.info(`已连上插件（握手 ${this.openedAt - this.connectStartedAt}ms，Bot：${this.name ?? '未知'}${this.features.size ? `，支持 ${[...this.features].join('、')}` : ''}）`);
         this.startHeartbeat(ws);
         this.setState('open');
         return;

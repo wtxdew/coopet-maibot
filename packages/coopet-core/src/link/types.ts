@@ -10,6 +10,18 @@ export interface OutgoingChat {
   text: string;
 }
 
+/**
+ * 转给麦麦的一条通知（扩展的通知设成「交给麦麦」时）。插件 0.2.0 起支持（协议 notice），
+ * 插件把它作为主人私聊里的通知消息交给 MaiBot，由她决定要不要说。
+ */
+export interface OutgoingNotice {
+  /** 通知从哪来（扩展名），最多 64 字 */
+  source: string;
+  /** 通知内容，最多 2000 字 */
+  text: string;
+  title?: string;
+}
+
 export type IncomingPart =
   | { kind: 'text'; text: string }
   /** MaiBot 发图片、表情包时，内容是 base64 */
@@ -48,4 +60,8 @@ export interface Link {
   hasThinking?(): boolean;
   /** 连上后 MaiBot 设置里的 Bot 名字（插件在握手时下发）；不知道时为 undefined */
   botName?(): string | undefined;
+  /** 现在能不能转通知给麦麦：连着、而且插件支持（welcome.features 里有 notice）。没有这个方法当作不能 */
+  supportsNotice?(): boolean;
+  /** 转一条通知给麦麦，等插件确认收下；不能转时直接 reject */
+  notice?(n: OutgoingNotice): Promise<{ id: string }>;
 }

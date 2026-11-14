@@ -9,7 +9,7 @@
  * - hasThinking：当前连接有没有真实的思考信号（插件协议有，maim_message 没有），Conductor 每轮问一次。
  */
 
-import type { IncomingMessage, Link, LinkState, OutgoingChat } from './types.ts';
+import type { IncomingMessage, Link, LinkState, OutgoingChat, OutgoingNotice } from './types.ts';
 
 export class LinkSwitch implements Link {
   private current: Link;
@@ -74,6 +74,14 @@ export class LinkSwitch implements Link {
 
   botName(): string | undefined {
     return this.current.botName?.();
+  }
+
+  supportsNotice(): boolean {
+    return this.current.supportsNotice?.() ?? false;
+  }
+
+  notice(n: OutgoingNotice): Promise<{ id: string }> {
+    return this.current.notice ? this.current.notice(n) : Promise.reject(new Error('这种连接不能转通知'));
   }
 
   private bind(link: Link): void {
