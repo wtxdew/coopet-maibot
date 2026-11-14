@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { statusText, trayTemplate } = require('../tray-menu.cjs');
+const { statusText, trayTemplate, trayTooltip } = require('../tray-menu.cjs');
 
 const base = { core: 'running', link: { kind: 'plugin', state: 'open', botName: '麦麦' }, onDesktop: true, petOrigin: 'http://127.0.0.1:7797', loginItem: false, loginItemAvailable: true, language: 'zh' };
 const actions = () => ({ openSettings: vi.fn(), togglePet: vi.fn(), openDress: vi.fn(), setLoginItem: vi.fn(), openLogs: vi.fn(), restartCore: vi.fn(), quit: vi.fn() });
@@ -33,6 +33,22 @@ describe('trayTemplate', () => {
     expect(a.togglePet).toHaveBeenCalled();
     expect(a.setLoginItem).toHaveBeenCalledWith(true);
     expect(a.quit).toHaveBeenCalled();
+  });
+
+  it('toggles click-through and says so in the tooltip', () => {
+    const a = { ...actions(), setClickThrough: vi.fn() };
+    const items = trayTemplate(base, a);
+    expect(items.map((i: any) => i.label ?? '—').slice(3, 5)).toEqual(['隐藏桌宠', '鼠标穿透']);
+    const item = items.find((i: any) => i.label === '鼠标穿透');
+    expect(item).toMatchObject({ type: 'checkbox', checked: false, enabled: true });
+    item.click();
+    expect(a.setClickThrough).toHaveBeenCalledWith(true);
+    trayTemplate({ ...base, clickThrough: true }, a).find((i: any) => i.label === '鼠标穿透').click();
+    expect(a.setClickThrough).toHaveBeenLastCalledWith(false);
+    expect(trayTemplate({ ...base, core: 'starting' }, a).find((i: any) => i.label === '鼠标穿透').enabled).toBe(false);
+    expect(trayTooltip(base)).toBe('Coopet');
+    expect(trayTooltip({ ...base, clickThrough: true })).toBe('Coopet（鼠标穿透中）');
+    expect(trayTooltip({ ...base, clickThrough: true, language: 'en' })).toBe('Coopet (click-through)');
   });
 
   it('offers restart-and-update once an update is downloaded', () => {

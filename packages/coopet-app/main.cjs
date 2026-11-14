@@ -83,6 +83,8 @@ function runApp() {
     loginItemAvailable: app.isPackaged,
     /** 下载好的更新的版本（托盘显示「重启并更新」） */
     updateReady: /** @type {string | null} */ (null),
+    /** 托盘的鼠标穿透（只在这次运行有效；核心重启后再告诉它一次） */
+    clickThrough: false,
   };
   /** @type {{ refresh: () => void } | null} */
   let tray = null;
@@ -133,6 +135,13 @@ function runApp() {
     app.quit();
   };
 
+  /** @param {boolean} on */
+  const setClickThrough = (on) => {
+    state.clickThrough = on;
+    core.send({ type: 'click-through', on });
+    refresh();
+  };
+
   /** 装扮：打开设置窗的装扮页（和 Coopanion 一样，不单独开窗口） */
   const openDress = () => settings?.open('#/dress');
 
@@ -151,6 +160,7 @@ function runApp() {
       if (typeof m.language === 'string') state.language = m.language;
       if (restarted) settings?.coreRestarted();
       if (updateStep) core.send({ type: 'update', step: updateStep });
+      if (state.clickThrough) core.send({ type: 'click-through', on: true });
     }
     else if (m?.type === 'language' && typeof m.language === 'string') {
       // 托盘菜单下次打开时用新语言；设置窗重新加载
@@ -212,6 +222,7 @@ function runApp() {
       openSettings: () => settings?.open(),
       // 由核心按桌宠的实时状态决定显示还是隐藏：托盘记的状态可能落后（例如从桌宠自己的菜单隐藏过）
       togglePet: () => core.send({ type: 'toggle-pet' }),
+      setClickThrough,
       openDress,
       setLoginItem: (on) => { setLoginItem(on); },
       openLogs,

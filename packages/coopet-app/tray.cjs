@@ -4,7 +4,7 @@
  * 图标在代码里画：一个圆环加两只眼睛；macOS 用黑色模板图，由系统按菜单栏颜色着色。
  */
 const { Menu, Tray, nativeImage } = require('electron');
-const { trayTemplate } = require('./tray-menu.cjs');
+const { trayTemplate, trayTooltip } = require('./tray-menu.cjs');
 
 /** 32×32 像素（2 倍图，显示为 16×16 点）的 BGRA 位图 */
 function trayIcon() {
@@ -38,8 +38,8 @@ function trayIcon() {
  */
 function createTray(getState, actions) {
   const tray = new Tray(trayIcon());
-  tray.setToolTip('Coopet');
   const refresh = () => {
+    tray.setToolTip(trayTooltip(getState()));
     const template = /** @type {Electron.MenuItemConstructorOptions[]} */ (trayTemplate(getState(), actions));
     tray.setContextMenu(Menu.buildFromTemplate(template));
   };

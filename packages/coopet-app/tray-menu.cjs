@@ -12,10 +12,12 @@
  *   loginItemAvailable: boolean,
  *   language: string,
  *   updateReady?: string | null,
+ *   clickThrough?: boolean,
  * }} TrayState
  * @typedef {{
  *   openSettings: () => void,
  *   togglePet: () => void,
+ *   setClickThrough?: (on: boolean) => void,
  *   openDress: () => void,
  *   setLoginItem: (on: boolean) => void,
  *   openLogs: () => void,
@@ -42,6 +44,8 @@ const TEXT = {
     settings: '设置…',
     hidePet: '隐藏桌宠',
     showPet: '显示桌宠',
+    clickThrough: '鼠标穿透',
+    tooltipThrough: 'Coopet（鼠标穿透中）',
     dress: '装扮…',
     loginItem: '开机自启',
     loginItemLater: '开机自启（打包后可用）',
@@ -64,6 +68,8 @@ const TEXT = {
     settings: 'Settings…',
     hidePet: 'Hide the pet',
     showPet: 'Show the pet',
+    clickThrough: 'Click through',
+    tooltipThrough: 'Coopet (click-through)',
     dress: 'Dress up…',
     loginItem: 'Start at login',
     loginItemLater: 'Start at login (in the packaged app)',
@@ -107,6 +113,11 @@ function trayTemplate(s, a) {
     { type: 'separator' },
     { label: t.settings, click: a.openSettings },
     { label: s.onDesktop ? t.hidePet : t.showPet, enabled: running, click: a.togglePet },
+    // 鼠标穿透：点击都穿过桌宠落到下面的窗口（打游戏时），桌宠照常走动和说话；只在这次运行有效
+    ...(a.setClickThrough ? [/** @type {MenuItem} */ ({
+      label: t.clickThrough, type: 'checkbox', checked: !!s.clickThrough, enabled: running,
+      click: () => a.setClickThrough?.(!s.clickThrough),
+    })] : []),
     { label: t.dress, enabled: running && !!s.petOrigin, click: a.openDress },
     { type: 'separator' },
     {
@@ -124,4 +135,12 @@ function trayTemplate(s, a) {
   return items;
 }
 
-module.exports = { statusText, trayTemplate };
+/**
+ * 托盘图标的提示文字：鼠标穿透时写明，免得以为桌宠点不动是坏了
+ * @param {TrayState} s
+ */
+function trayTooltip(s) {
+  return s.clickThrough ? textOf(s.language).tooltipThrough : 'Coopet';
+}
+
+module.exports = { statusText, trayTemplate, trayTooltip };
