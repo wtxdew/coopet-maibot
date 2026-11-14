@@ -12,7 +12,7 @@
  * 气泡里点了「现在重启更新」（update-install）或托盘的「重启并更新」就退出并静默安装；没点的话退出时安装。
  * 两种都装完重新打开，退出安装时还弹一条系统通知：静默安装要一两分钟，没有提示的话容易在中途又去打开旧版本。
  */
-const { app, shell, Notification } = require('electron');
+const { app, shell, Notification, session } = require('electron');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { APP_ROOT, CORE_ENTRY, CORE_ROOT, CORTICO_RESOLVER, ELECTRON_DATA_DIR, LOGS_DIR } = require('./paths.cjs');
@@ -55,6 +55,7 @@ function runApp() {
   const SELF_UPDATE = canUpdate();
   const { createTray } = require('./tray.cjs');
   const { createConsoleWindow } = require('./console-window.cjs');
+  const { coreEnvironment, lookupProxy, proxySource } = require('./core-env.cjs');
   /** @param {string} msg */
   const log = (msg) => console.log(`[app] ${msg}`);
 
@@ -65,9 +66,11 @@ function runApp() {
     cwd: CORE_ROOT,
     execPath: process.execPath,
     preload: [CORTICO_RESOLVER],
-    env: { ...process.env, CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost), COOPET_SELF_UPDATE: SELF_UPDATE ? '1' : '0' },
+    // 本机地址一律直连；没有自己的代理变量时，核心的请求按地址问这里系统代理怎么走（core-env.cjs、核心的 runtime/system-proxy.ts）
+    env: coreEnvironment({ ...process.env, CORTICO_DESKTOP_PET_HOST: JSON.stringify(petHost), COOPET_SELF_UPDATE: SELF_UPDATE ? '1' : '0' }),
     log: (msg) => console.log(`[core-host] ${msg}`),
   });
+  log(proxySource(process.env));
 
   /** @type {import('./tray-menu.cjs').TrayState & { webPort: number | null }} */
   const state = {
@@ -153,6 +156,12 @@ function runApp() {
     refresh();
   });
   core.on('message', (/** @type {any} */ m) => {
+    // 核心问某个地址的系统代理：用 Electron 的 resolveProxy 回答（PAC 脚本、系统的例外列表都算）
+    if (m?.type === 'proxy' && typeof m.url === 'string') {
+      void lookupProxy(m.url, (url) => session.defaultSession.resolveProxy(url))
+        .then((answer) => core.send({ type: 'proxy', id: m.id, ...answer }));
+      return;
+    }
     if (m?.type === 'ready') {
       const restarted = state.webPort !== null && state.webPort !== m.webPort;
       state.petOrigin = m.petOrigin;

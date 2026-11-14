@@ -47,6 +47,13 @@ const runlog = openRunlog(dirs.data);
 // 级别和写不写文本文件每次现读配置：设置窗里改了马上生效
 const log = consoleLogger('coopet', () => cfg.log.level, [switchableSink(new DailyFileSink(dirs.logs), () => cfg.log.file), runlog.sink]);
 log.info(`Coopet 启动（v${CLIENT_VERSION}，运行 ${runlog.runId}，连接方式 ${cfg.link.kind}，日志级别 ${cfg.log.level}${cfg.log.file ? `，日志文件 ${dirs.logs}` : ''}）`);
+// 外壳设了 COOPET_SYSTEM_PROXY（没有自己的代理变量）时，fetch 按地址问外壳系统代理怎么走：mihomo 这类开着系统代理时，
+// ntfy、下载语音模型也走它。在任何请求之前装上；连 MaiBot 的 WebSocket 不经过这里
+if (process.env.COOPET_SYSTEM_PROXY === '1') {
+  const { SystemProxy, askAppProcess, installSystemProxy } = await import('./runtime/system-proxy.ts');
+  const proxyLog = log.child('proxy');
+  await installSystemProxy(new SystemProxy(askAppProcess(), (line) => proxyLog.info(line)));
+}
 if (migratedFrom) log.info(`已把 ${migratedFrom} 的数据拷贝到 ${dirs.root}（旧目录原样保留，确认没问题后可以自己删掉）`);
 // 事件写进文件，重启后对话页还能看到以前的记录
 const store = openEventLog(dirs.events, { onWriteError: (err) => log.warn(`事件记录写不了（${dirs.events}），之后只留在内存里：${err.message}`) });
