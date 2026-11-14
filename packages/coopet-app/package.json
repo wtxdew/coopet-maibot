@@ -1,6 +1,6 @@
 {
   "name": "coopet-app",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Coopet desktop shell: tray, single instance, runs the core and the pet window",
   "license": "AGPL-3.0-or-later",
