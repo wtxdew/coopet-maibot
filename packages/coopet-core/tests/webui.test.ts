@@ -162,7 +162,8 @@ describe('webui surface', () => {
     expect(t.loaded.cfg.link.plugin.url).toBe('ws://nas:18100/ws');
     const file = join(t.root, 'plugin-token');
     expect(readFileSync(file, 'utf8')).toBe('tok');
-    expect(statSync(file).mode & 0o777).toBe(0o600);
+    // Windows 没有 Unix 的权限位（文件靠用户目录的访问控制保护），只在其他系统上检查
+    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600);
     expect(existsSync(join(t.root, 'token'))).toBe(false);
     expect(t.applyLink).toHaveBeenCalledOnce();
   });

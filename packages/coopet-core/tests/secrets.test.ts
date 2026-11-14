@@ -14,7 +14,8 @@ describe('SecretStore', () => {
     expect(store.get('API_KEY')).toBe('abc');
     expect(store.get('OVERRIDE')).toBe('from-env');
     expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ API_KEY: 'abc', OVERRIDE: 'from-file' });
-    expect(statSync(file).mode & 0o777).toBe(0o600);
+    // Windows 没有 Unix 的权限位（文件靠用户目录的访问控制保护），只在其他系统上检查
+    if (process.platform !== 'win32') expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 
   it('refuses bad names and empty or spaced values', () => {
