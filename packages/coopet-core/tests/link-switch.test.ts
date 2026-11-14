@@ -19,6 +19,7 @@ function fake(withThinking: boolean) {
     onState: (cb) => { st.push(cb); },
     ...(withThinking ? { onThinking: (cb: (on: boolean) => void) => { th.push(cb); } } : {}),
     botName: () => (withThinking ? '麦麦' : undefined),
+    ...(withThinking ? { supportsNotice: () => true, notice: vi.fn(async () => ({ id: 'n' })) } : {}),
     emitMessage: (t) => { for (const cb of msg) cb({ parts: [{ kind: 'text', text: t }], receivedAt: 0 }); },
     emitState: (s, r) => { state = s; for (const cb of st) cb(s, r); },
     emitThinking: (on) => { for (const cb of th) cb(on); },
@@ -45,6 +46,15 @@ describe('LinkSwitch', () => {
     expect(sw.state()).toBe('open');
     expect(sw.botName()).toBe('麦麦');
     expect(sw.hasThinking()).toBe(true);
+    expect(sw.supportsNotice()).toBe(true);
+    await sw.notice({ source: 'ntfy', text: 'hi' });
+    expect(a.notice).toHaveBeenCalledWith({ source: 'ntfy', text: 'hi' });
+  });
+
+  it('cannot pass notices through a link without them', async () => {
+    const sw = new LinkSwitch(fake(false));
+    expect(sw.supportsNotice()).toBe(false);
+    await expect(sw.notice({ source: 'ntfy', text: 'hi' })).rejects.toThrow();
   });
 
   it('replaces the link: stops the old one, reports one closed, starts the new one', async () => {
