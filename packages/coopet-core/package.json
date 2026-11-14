@@ -1,6 +1,6 @@
 {
   "name": "coopet-core",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "private": true,
   "description": "Coopet client core: hosts the desktop-pet World, conducts chat with MaiBot",
   "license": "AGPL-3.0-or-later",
