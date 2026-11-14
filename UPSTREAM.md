@@ -6,7 +6,7 @@ so that upstream changes can be merged. Record every sync here.
 | Path | Upstream | Commit | Synced | License |
 |---|---|---|---|---|
 | `packages/cortico-world-desktop-pet` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `packages/cortico-world-desktop-pet` | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-12 | AGPL-3.0-or-later |
-| `packages/cortico-provider-coo` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `packages/cortico-provider-coo` | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-12 | AGPL-3.0-or-later |
+| `packages/cortico-provider-coo` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `packages/cortico-provider-coo` | `8829fd4fd0916f2c65f824daa63e503eff042b8a` (2026-11-13) | 2026-11-14 | AGPL-3.0-or-later |
 | `shared/ui` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `shared/ui` (imported by the pet's WebUI panels) | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-12 | AGPL-3.0-or-later |
 | `console` | [Pal-AI-Lab/Coopanion](https://github.com/Pal-AI-Lab/Coopanion) `console` (the settings window front end) | `18631752c14d981512fc41cbfaa97a0ba68dd1de` (2026-11-10) | 2026-11-13 | AGPL-3.0-or-later |
 | `cortico-world-coding-agent-notify` (npm dependency, bundled as a built-in World extension, unchanged; not copied into this repo) | [ThermalEng/coopanion-agent-notify-world](https://github.com/ThermalEng/coopanion-agent-notify-world), npm `cortico-world-coding-agent-notify` | `1.2.0` (pinned) | 2026-11-13 | AGPL-3.0-or-later |
