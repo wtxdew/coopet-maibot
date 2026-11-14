@@ -1,0 +1,75 @@
+# 发布：推一个 v* 的 tag（例如 v0.1.4），在 GitHub 的 macOS（Apple 芯片）和 Windows 机器上各打一个包，
+# 连同自动更新要的 latest*.yml 和 .blockmap 传到这个 tag 的草稿 Release。
+# 正式发布由人在 GitHub 上点（先装上试过）；这里不会自动发布。
+#
+# 本地打包（corepack pnpm run pack）照样能用；这里跑的是同一个脚本。
+# 不签名，所以不需要任何密钥：上传用 GitHub 给这次运行的临时 token（GITHUB_TOKEN）。
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  # 先建好草稿 Release，两个打包的任务再往里传（同时建会撞）
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the draft release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft --verify-tag \
+              --title "Coopet ${TAG#v}" --notes "（发布说明待补）"
+
+  pack:
+    needs: draft
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            files: dist/Coopet-*-mac-*.dmg dist/Coopet-*-mac-*.zip dist/Coopet-*-mac-*.zip.blockmap dist/latest-mac.yml
+          - os: windows-latest
+            files: dist/Coopet-Setup-*.exe dist/Coopet-Setup-*.exe.blockmap dist/latest.yml
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          corepack pnpm install --frozen-lockfile
+
+      - name: Tag matches the version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          [ "v$version" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} ≠ package.json v$version"; exit 1; }
+
+      - name: Test
+        run: |
+          corepack pnpm run test:core
+          corepack pnpm run test:app
+
+      # macOS 用 electron-builder.yml 里的临时签名（identity "-"），和本地打包一样
+      - name: Pack
+        run: corepack pnpm run pack
+
+      - name: Upload to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" ${{ matrix.files }} --clobber -R "$GITHUB_REPOSITORY"
