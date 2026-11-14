@@ -88,7 +88,14 @@ describe('webui surface', () => {
       link: { since: '2026-11-13T10:00:00.000Z' }, pet: { url: 'http://127.0.0.1:7797' },
       events: { latest: 0 }, log: { level: 'info', file: true },
       conversation: { turns: 3, recent: { medianReplyMs: 2500 } },
+      notices: [],
     });
+  });
+
+  it('puts recent notice records in the status for the diagnostics page', async () => {
+    const record = { id: 'n1', at: '2026-11-14T10:00:00.000Z', cursor: 1, worldId: 'ntfy', source: 'ntfy 通知', type: 'ntfy.message', text: 'build：构建完成', route: 'maibot', result: 'replied', reply: '构建好了', updatedAt: '2026-11-14T10:00:05.000Z' };
+    const t = await setup(() => ({ notices: () => [record as never] }));
+    expect((await t.get('/api/status')).body.notices).toEqual([record]);
   });
 
   it('lists the pet config groups with speech recognition, without computer use', async () => {
