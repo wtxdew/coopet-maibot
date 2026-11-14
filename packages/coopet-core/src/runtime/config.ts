@@ -11,7 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix, win32 } from 'node:path';
 import type { DeepPartial } from 'cortico/world.ts';
 import type { Logger, LogLevel } from 'cortico/core/types.ts';
 import { isLanguage, systemLanguage, type Language } from 'cortico/core/language.ts';
@@ -117,9 +117,11 @@ export const LEGACY_DATA_ROOT = join(homedir(), '.config', 'coopet');
  */
 export function defaultDataRoot(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
   if (env.COOPET_DATA_DIR) return env.COOPET_DATA_DIR;
-  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Coopet');
-  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Coopet');
-  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'coopet');
+  // 按目标系统的路径规则拼（Windows 用 \\），和在哪台机器上算无关
+  const { join: j } = platform === 'win32' ? win32 : posix;
+  if (platform === 'darwin') return j(home, 'Library', 'Application Support', 'Coopet');
+  if (platform === 'win32') return j(env.APPDATA || j(home, 'AppData', 'Roaming'), 'Coopet');
+  return j(env.XDG_CONFIG_HOME || j(home, '.config'), 'coopet');
 }
 
 /**

@@ -7,7 +7,7 @@ const { defaultDataRoot: shellRoot } = require('../paths.cjs');
 
 const cases: Array<[NodeJS.Platform, NodeJS.ProcessEnv, string]> = [
   ['darwin', {}, '/Users/me/Library/Application Support/Coopet'],
-  ['win32', { APPDATA: 'C:\\Users\\me\\AppData\\Roaming' }, 'C:\\Users\\me\\AppData\\Roaming/Coopet'],
+  ['win32', { APPDATA: 'C:\\Users\\me\\AppData\\Roaming' }, 'C:\\Users\\me\\AppData\\Roaming\\Coopet'],
   ['linux', {}, '/Users/me/.config/coopet'],
   ['linux', { XDG_CONFIG_HOME: '/x' }, '/x/coopet'],
   ['darwin', { COOPET_DATA_DIR: '/tmp/c' }, '/tmp/c'],

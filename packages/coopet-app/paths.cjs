@@ -4,7 +4,7 @@
  * tests/paths.test.ts 核对）：设了 COOPET_DATA_DIR 就用它，否则按各系统的惯例位置。
  */
 const { homedir } = require('node:os');
-const { join } = require('node:path');
+const { join, posix, win32 } = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 /** 本包所在目录（开发时 Electron 以它为应用目录启动） */
@@ -18,9 +18,11 @@ const CORE_ROOT = join(APP_ROOT, '..', 'coopet-core');
  */
 function defaultDataRoot(platform = process.platform, env = process.env, home = homedir()) {
   if (env.COOPET_DATA_DIR) return env.COOPET_DATA_DIR;
-  if (platform === 'darwin') return join(home, 'Library', 'Application Support', 'Coopet');
-  if (platform === 'win32') return join(env.APPDATA || join(home, 'AppData', 'Roaming'), 'Coopet');
-  return join(env.XDG_CONFIG_HOME || join(home, '.config'), 'coopet');
+  // 按目标系统的路径规则拼（Windows 用 \\），和在哪台机器上算无关
+  const { join: j } = platform === 'win32' ? win32 : posix;
+  if (platform === 'darwin') return j(home, 'Library', 'Application Support', 'Coopet');
+  if (platform === 'win32') return j(env.APPDATA || j(home, 'AppData', 'Roaming'), 'Coopet');
+  return j(env.XDG_CONFIG_HOME || j(home, '.config'), 'coopet');
 }
 const DATA_DIR = defaultDataRoot();
 

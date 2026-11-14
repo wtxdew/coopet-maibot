@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { join, sep } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
@@ -44,7 +44,8 @@ describe('decide', () => {
 });
 
 describe('windowFilePath', () => {
-  const dir = join(sep, 'app', 'build', 'console');
+  // 绝对路径（Windows 上带盘符），和真实的应用目录一样
+  const dir = resolve(sep, 'app', 'build', 'console');
   it('maps paths under the folder, index.html by default', () => {
     expect(windowFilePath(dir, '/coopet/')).toBe(join(dir, 'index.html'));
     expect(windowFilePath(dir, '/coopet/index.js')).toBe(join(dir, 'index.js'));
